@@ -1,0 +1,22 @@
+services:
+  usuarios-service:
+    build: ./backend/servico-usuarios
+    container_name: usuarios-service
+    restart: unless-stopped
+
+  reservas-service:
+    build: ./backend/servico-reservas
+    container_name: reservas-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001" 
+
+  frontend:
+    build: ./frontend
+    container_name: frontend-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - usuarios-service
+      - reservas-service
