@@ -1,0 +1,14 @@
+### ==================================
+### TESTES PARA O SERVIÇO DE USUÁRIOS
+### ==================================
+
+### Requisição 2: Buscar um usuário que EXISTE
+# Esta requisição testa o endpoint do serviço de usuários para um ID válido (123).
+# Esperamos receber um status 200 OK e os dados do usuário.
+GET http://localhost/api/users/123
+
+
+### Requisição 3: Buscar um usuário que NÃO EXISTE
+# Esta requisição testa o tratamento de erro do serviço de usuários.
+# Usamos um ID inválido (999) e esperamos receber um status 404 Not Found.
+GET http://localhost/api/users/69

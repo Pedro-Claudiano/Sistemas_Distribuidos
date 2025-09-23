@@ -7,7 +7,7 @@ app.use(cors());
 app.use(express.json());
 
 // Banco de dados em memória
-const users = [{ userId: '123', name: 'João da Silva' }];
+const users = [{ userId: '123', name: 'Xeninha' }];
 
 app.get('/users/:userId', (req, res) => {
     console.log(`[Usuários] Buscando usuário ${req.params.userId}`);

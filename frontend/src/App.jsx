@@ -1,106 +1,147 @@
-import React, { useState } from 'react';
-import './App.css';
+import React, { useState, useMemo } from 'react';
+import { 
+  Container, 
+  Box, 
+  TextField, 
+  Button, 
+  Typography, 
+  CssBaseline,
+  CircularProgress,
+  Alert,
+  Switch,
+  FormGroup,
+  FormControlLabel
+} from '@mui/material';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 function App() {
-  // Estados para armazenar os dados dos inputs do formulário
   const [userId, setUserId] = useState('');
   const [room, setRoom] = useState('');
-
-  // Estado para armazenar as mensagens de feedback (sucesso ou erro)
   const [message, setMessage] = useState('');
-  
-  // Estado para controlar o status de carregamento e desabilitar o botão
   const [isLoading, setIsLoading] = useState(false);
 
-  // Função chamada quando o formulário é enviado
+  const [mode, setMode] = useState('dark');
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode,
+        },
+      }),
+    [mode],
+  );
+
+  const handleThemeChange = () => {
+    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+  };
+
   const handleSubmit = async (event) => {
-    event.preventDefault(); // Impede o recarregamento da página
-    
-    // Validação simples para garantir que os campos não estão vazios
+    event.preventDefault();
     if (!userId || !room) {
       setMessage({ type: 'error', text: 'Por favor, preencha todos os campos.' });
       return;
     }
-
     setIsLoading(true);
     setMessage('');
-
     try {
-      // Faz a chamada POST para o nosso backend.
-      // A URL '/api/reservas' é interceptada pelo Nginx e redirecionada
-      // para o serviço de reservas, como configuramos.
       const response = await fetch('/api/reservas', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, room }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
-        // Se a resposta não for de sucesso (ex: 400, 404), lança um erro
         throw new Error(data.error || 'Ocorreu um erro ao criar a reserva.');
       }
-      
-      // Se tudo deu certo, exibe a mensagem de sucesso
       setMessage({ type: 'success', text: data.message });
       setUserId('');
       setRoom('');
-
     } catch (error) {
-      // Se ocorrer qualquer erro, exibe a mensagem de erro
       setMessage({ type: 'error', text: error.message });
     } finally {
-      // Garante que o estado de carregamento seja desativado no final
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="container">
-      <header>
-        <h1>Sistema de Reserva de Salas</h1>
-        <p>Um sistema distribuído rodando com React, Node.js e Docker.</p>
-      </header>
+    <ThemeProvider theme={theme}>
+      {/* O Switch do tema agora fica FORA do container principal */}
+      <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
+        <FormGroup>
+          <FormControlLabel
+            control={<Switch checked={mode === 'dark'} onChange={handleThemeChange} />}
+            label={mode === 'dark' ? 'Escuro' : 'Claro'}
+          />
+        </FormGroup>
+      </Box>
 
-      <main>
-        <form onSubmit={handleSubmit} className="reservation-form">
-          <div className="form-group">
-            <label htmlFor="userId">ID do Usuário</label>
-            <input
-              type="text"
+      {/* O Container agora só tem a responsabilidade de centralizar o formulário */}
+      <Container 
+        component="main" 
+        maxWidth="xs"
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+        }}
+      >
+        <CssBaseline />
+        
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            width: '100%'
+          }}
+        >
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
+            <Typography component="h1" variant="h5" align="center" gutterBottom>
+              Sistema de Reserva
+            </Typography>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
               id="userId"
+              label="ID do Usuário"
+              name="userId"
+              autoFocus
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              placeholder="Ex: 123"
               disabled={isLoading}
             />
-          </div>
-          <div className="form-group">
-            <label htmlFor="room">Nome da Sala</label>
-            <input
-              type="text"
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              name="room"
+              label="Nome da Sala"
               id="room"
               value={room}
               onChange={(e) => setRoom(e.target.value)}
-              placeholder="Ex: Sala de Reunião A"
               disabled={isLoading}
             />
-          </div>
-          <button type="submit" disabled={isLoading}>
-            {isLoading ? 'Enviando...' : 'Fazer Reserva'}
-          </button>
-        </form>
-
-        {message && (
-          <div className={`message ${message.type}`}>
-            {message.text}
-          </div>
-        )}
-      </main>
-    </div>
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              sx={{ mt: 3, mb: 2 }}
+              disabled={isLoading}
+            >
+              {isLoading ? <CircularProgress size={24} /> : 'Fazer Reserva'}
+            </Button>
+          </Box>
+          {message && (
+            <Alert severity={message.type} sx={{ width: '100%', mt: 2 }}>
+              {message.text}
+            </Alert>
+          )}
+        </Box>
+      </Container>
+    </ThemeProvider>
   );
 }
 
