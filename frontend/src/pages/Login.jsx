@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Box, TextField, Button, Typography, CircularProgress, Alert } from '@mui/material';
-import { Link } from 'react-router-dom';
+import { Box, TextField, Button, Typography, CircularProgress, Alert, Grid, Link } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -8,11 +8,31 @@ export default function Login() {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    // A lógica de login será adicionada aqui no futuro
-    console.log({ email, password });
-    setMessage({ type: 'info', text: 'Funcionalidade de login ainda não implementada.' });
+    
+    // 1. Inicia o estado de carregamento
+    setIsLoading(true);
+    setMessage(''); // Limpa mensagens antigas
+
+    try {
+      // Simulando uma chamada de API que demora 2 segundos
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      if (email === "Xena@ninha.com" && password === "1234") {
+        setMessage({ type: 'success', text: 'Login bem-sucedido!' });
+      } else {
+        throw new Error("Email ou senha inválidos.");
+      }
+
+    } catch (error) {
+      // Define a mensagem de erro se a "API" falhar
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      // 3. Garante que o estado de carregamento seja desativado no final,
+      // independentemente de sucesso ou falha.
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,6 +66,15 @@ export default function Login() {
         onChange={(e) => setPassword(e.target.value)}
         disabled={isLoading}
       />
+
+      <Grid container justifyContent="flex-end">
+        <Grid item>
+          <Link component={RouterLink} to="/forgot-password" variant="body2">
+            Esqueceu a senha?
+          </Link>
+        </Grid>
+      </Grid>
+
       <Button
         type="submit"
         fullWidth
@@ -61,7 +90,7 @@ export default function Login() {
         </Alert>
       )}
       <Typography variant="body2" align="center">
-        <Link to="/">Voltar para a página inicial</Link>
+        <RouterLink to="/">Voltar para a página inicial</RouterLink>
       </Typography>
     </Box>
   );
