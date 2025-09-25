@@ -6,9 +6,9 @@ import App from './App.jsx';
 import Welcome from './pages/Welcome.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
-import ForgotPassword  from './pages/ForgotPassword.jsx';
-import './index.css';
+import ForgotPassword from './pages/ForgotPassword.jsx';
 import RoomSelection from './pages/RoomSelection.jsx';
+import './index.css';
 
 // Criação do roteador com o mapa do site
 const router = createBrowserRouter([
@@ -17,15 +17,15 @@ const router = createBrowserRouter([
     element: <App />, // O App é o layout principal
     children: [ // As páginas são "filhas" do layout
       {
-        index: true, // A rota "/" (página inicial) renderizará Welcome
+        index: true,
         element: <Welcome />,
       },
       {
-        path: "login", // A rota "/login" renderizará Login
+        path: "login",
         element: <Login />,
       },
       {
-        path: "register", // A rota "/register" renderizará Register
+        path: "register",
         element: <Register />,
       },
       {
@@ -34,7 +34,7 @@ const router = createBrowserRouter([
       },
       {
         path:"dashboard",
-        element:<RoomSelection />,
+        element: <RoomSelection />,
       },
     ],
   },
