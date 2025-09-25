@@ -1,36 +1,68 @@
 import React, { useState } from 'react';
-import { Box, TextField, Button, Typography, CircularProgress, Alert, Grid, Link } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
+import { 
+  Box, 
+  TextField, 
+  Button, 
+  Typography, 
+  CircularProgress, 
+  Alert, 
+  Grid, 
+  Link, 
+  InputAdornment, 
+  IconButton 
+} from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
 
+  const handleClickShowPassword = () => setShowPassword((show) => !show);
+
+  const handleMouseDownPassword = (event) => {
+    event.preventDefault();
+  };
+
+  // 👇 FUNÇÃO handleSubmit CORRIGIDA PARA CHAMAR A API REAL
   const handleSubmit = async (event) => {
     event.preventDefault();
-    
-    // 1. Inicia o estado de carregamento
+    if (!email || !password) {
+      setMessage({ type: 'error', text: 'Por favor, preencha todos os campos.' });
+      return;
+    }
     setIsLoading(true);
-    setMessage(''); // Limpa mensagens antigas
-
+    setMessage('');
     try {
-      // Simulando uma chamada de API que demora 2 segundos
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Faz a chamada POST REAL para o endpoint de login do seu backend
+      const response = await fetch('/api/users/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-      if (email === "Xena@ninha.com" && password === "1234") {
-        setMessage({ type: 'success', text: 'Login bem-sucedido!' });
-      } else {
-        throw new Error("Email ou senha inválidos.");
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Se a resposta do servidor não for de sucesso, lança um erro
+        throw new Error(data.error || 'Ocorreu um erro ao tentar fazer login.');
       }
+      
+      // Se deu tudo certo, redireciona para o dashboard
+      navigate('/dashboard');
 
     } catch (error) {
-      // Define a mensagem de erro se a "API" falhar
+      // Se ocorrer qualquer erro, define a mensagem de erro
       setMessage({ type: 'error', text: error.message });
     } finally {
-      // 3. Garante que o estado de carregamento seja desativado no final,
-      // independentemente de sucesso ou falha.
+      // Garante que o estado de carregamento seja desativado no final
       setIsLoading(false);
     }
   };
@@ -59,12 +91,26 @@ export default function Login() {
         fullWidth
         name="password"
         label="Senha"
-        type="password"
+        type={showPassword ? 'text' : 'password'}
         id="password"
         autoComplete="current-password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         disabled={isLoading}
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton
+                aria-label="toggle password visibility"
+                onClick={handleClickShowPassword}
+                onMouseDown={handleMouseDownPassword}
+                edge="end"
+              >
+                {showPassword ? <VisibilityOff /> : <Visibility />}
+              </IconButton>
+            </InputAdornment>
+          ),
+        }}
       />
 
       <Grid container justifyContent="flex-end">

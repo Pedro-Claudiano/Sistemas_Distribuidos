@@ -12,3 +12,26 @@ GET http://localhost/api/users/123
 # Esta requisição testa o tratamento de erro do serviço de usuários.
 # Usamos um ID inválido (999) e esperamos receber um status 404 Not Found.
 GET http://localhost/api/users/69
+
+### ==================================
+### TESTES PARA O ENDPOINT DE LOGIN
+### ==================================
+
+### Tentar login com credenciais CORRETAS
+POST http://localhost/api/users/login
+Content-Type: application/json
+
+{
+  "email": "maria@souza.com",
+  "password": "senha456"
+}
+
+
+### Tentar login com senha ERRADA
+POST http://localhost/api/users/login
+Content-Type: application/json
+
+{
+  "email": "maria@souza.com",
+  "password": "senha-errada"
+}

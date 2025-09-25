@@ -8,6 +8,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import ForgotPassword  from './pages/ForgotPassword.jsx';
 import './index.css';
+import RoomSelection from './pages/RoomSelection.jsx';
 
 // Criação do roteador com o mapa do site
 const router = createBrowserRouter([
@@ -30,6 +31,10 @@ const router = createBrowserRouter([
       {
         path: "forgot-password",
         element: <ForgotPassword />,
+      },
+      {
+        path:"dashboard",
+        element:<RoomSelection />,
       },
     ],
   },
