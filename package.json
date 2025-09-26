@@ -6,5 +6,21 @@
     "start": "docker-compose up -d",
     "stop": "docker-compose down",
     "logs": "docker-compose logs -f"
+  },
+  "description": "Yuri: fazer o frontbonitinho \r Xena: substituir os dados em memória nos serviços de backend por chamadas a um banco de dados real",
+  "main": "create-tables.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pedro-Claudiano/Sistemas_Distribuidos.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Pedro-Claudiano/Sistemas_Distribuidos/issues"
+  },
+  "homepage": "https://github.com/Pedro-Claudiano/Sistemas_Distribuidos#readme",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.896.0"
   }
 }

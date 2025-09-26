@@ -1,29 +1,36 @@
+# docker-compose.yml - VERSÃO CORRETA
 services:
   usuarios-service:
     build: ./backend/servico-usuarios
     container_name: usuarios-service
     restart: unless-stopped
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - DB_PORT=${DB_PORT}
-      - JWT_SECRET=${JWT_SECRET}
+      # Variáveis para o DynamoDB
+      AWS_ACCESS_KEY_ID: dummykey
+      AWS_SECRET_ACCESS_KEY: dummysecret
+      AWS_REGION: us-east-1
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      # Variável restante que precisa ser definida
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - dynamodb-local
 
   reservas-service:
     build: ./backend/servico-reservas
     container_name: reservas-service
     restart: unless-stopped
     ports:
-      - "3001:3001" 
+      - "3001:3001"
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - DB_PORT=${DB_PORT}
-      - JWT_SECRET=${JWT_SECRET}
+      # Variáveis para o DynamoDB
+      AWS_ACCESS_KEY_ID: dummykey
+      AWS_SECRET_ACCESS_KEY: dummysecret
+      AWS_REGION: us-east-1
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      # Variável restante que precisa ser definida
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - dynamodb-local
 
   frontend:
     build:
@@ -36,3 +43,17 @@ services:
     depends_on:
       - usuarios-service
       - reservas-service
+
+  # Definição do serviço do DynamoDB Local
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb_local_service
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodb_data:/home/dynamodblocal/data
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ."
+
+volumes:
+  dynamodb_data:
