@@ -4,6 +4,24 @@
 ### `GET /users/{userId}`
 
 Yuri: fazer o frontbonitinho 
+
+COMANDO PULL SEM AWS BD:
+# 2. Cria um arquivo .env na raiz e coloca a linha:
+# JWT_SECRET=meu-segredo-super-secreto-12345
+
+
+# 3. Instala as dependências do script da raiz
+npm install
+
+# 4. Sobe a aplicação com Docker
+docker-compose up --build -d
+
+# 5. Cria as tabelas no banco de dados
+node create-tables.js
+
+# 6. Abre o VS Code e testa com o Thunder Client!
+
+
 Xena: substituir os dados em memória nos serviços de backend por chamadas a um banco de dados real
 
 As necessidades imediatas do banco de dados são:
