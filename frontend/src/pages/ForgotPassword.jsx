@@ -1,10 +1,10 @@
 import React from 'react';
-import { Typography, Box, TextField, Button } from '@mui/material';
+import { Typography, Box, TextField, Button, Link } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 
 export default function ForgotPassword() {
   return (
-    <Box sx={{ textAlign: 'center', width: '100%' }}>
+    <Box sx={{ textAlign: 'center', width: '100%', maxWidth: 400 }}>
       <Typography variant="h4" gutterBottom>
         Recuperar Senha
       </Typography>
@@ -30,8 +30,9 @@ export default function ForgotPassword() {
         Enviar Email de Recuperação
       </Button>
       <Typography variant="body2" align="center">
-        <RouterLink to="/login">Voltar para o Login</RouterLink>
+        <Link component={RouterLink} to="/login">Voltar para o Login</Link>
       </Typography>
     </Box>
   );
 }
+

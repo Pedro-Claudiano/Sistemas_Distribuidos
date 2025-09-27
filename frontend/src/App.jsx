@@ -1,6 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { Outlet } from 'react-router-dom'; // Importante para renderizar as páginas filhas
-import { Container, Box, CssBaseline, Switch, FormGroup, FormControlLabel, ThemeProvider, createTheme } from '@mui/material';
+import { Outlet } from 'react-router-dom';
+import { 
+  Container, 
+  Box, 
+  CssBaseline, 
+  Switch, 
+  FormGroup, 
+  FormControlLabel, 
+  ThemeProvider, 
+  createTheme 
+} from '@mui/material';
 
 export default function App() {
   const [mode, setMode] = useState('dark');
@@ -12,7 +21,7 @@ export default function App() {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
+      <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>
         <FormGroup>
           <FormControlLabel
             control={<Switch checked={mode === 'dark'} onChange={handleThemeChange} />}

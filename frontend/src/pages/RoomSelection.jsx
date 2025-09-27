@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Divider, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  MenuItem, 
-  Button 
+import {
+  Box,
+  Typography,
+  Divider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  Link
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 
@@ -65,9 +66,9 @@ export default function RoomSelection() {
       >
         Confirmar Reserva
       </Button>
-      
+
       <Typography variant="body2" align="center" sx={{ mt: 4 }}>
-        <RouterLink to="/">Sair e voltar para a página inicial</RouterLink>
+        <Link component={RouterLink} to="/">Sair e voltar para a página inicial</Link>
       </Typography>
     </Box>
   );

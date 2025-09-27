@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { 
-  Box, 
-  TextField, 
-  Button, 
-  Typography, 
-  CircularProgress, 
-  Alert, 
-  Grid, 
-  Link, 
-  InputAdornment, 
-  IconButton 
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  CircularProgress,
+  Alert,
+  Grid,
+  Link,
+  InputAdornment,
+  IconButton
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
@@ -29,7 +29,6 @@ export default function Login() {
     event.preventDefault();
   };
 
-  // 👇 FUNÇÃO handleSubmit CORRIGIDA PARA CHAMAR A API REAL
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!email || !password) {
@@ -39,36 +38,30 @@ export default function Login() {
     setIsLoading(true);
     setMessage('');
     try {
-      // Faz a chamada POST REAL para o endpoint de login do seu backend
       const response = await fetch('/api/users/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        // Se a resposta do servidor não for de sucesso, lança um erro
         throw new Error(data.error || 'Ocorreu um erro ao tentar fazer login.');
       }
       
-      // Se deu tudo certo, redireciona para o dashboard
+      // Se o login for bem-sucedido, redireciona para o dashboard
       navigate('/dashboard');
 
     } catch (error) {
-      // Se ocorrer qualquer erro, define a mensagem de erro
       setMessage({ type: 'error', text: error.message });
     } finally {
-      // Garante que o estado de carregamento seja desativado no final
       setIsLoading(false);
     }
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
+    <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%', maxWidth: 400 }}>
       <Typography component="h1" variant="h5" align="center" gutterBottom>
         Login
       </Typography>
@@ -141,3 +134,4 @@ export default function Login() {
     </Box>
   );
 }
+
