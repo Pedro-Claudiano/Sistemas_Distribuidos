@@ -1,11 +1,11 @@
+/* Importar a fonte Poppins do Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700&display=swap');
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Definir a Poppins como fonte principal */
+  font-family: 'Poppins', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -13,11 +13,10 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Esta é a parte importante: garantimos que tudo ocupe 100% da altura,
-  permitindo que a centralização vertical da MUI funcione.
-*/
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden; /* Evita barras de scroll indesejadas por causa da animação */
 }
+
