@@ -1,12 +1,9 @@
-/* Importar a fonte Poppins do Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700&display=swap');
 
 :root {
-  /* Definir a Poppins como fonte principal */
   font-family: 'Poppins', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -17,6 +14,9 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden; /* Evita barras de scroll indesejadas por causa da animação */
 }
 
+body {
+  background-color: #f4f6f8; 
+  overflow: hidden; 
+}
