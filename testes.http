@@ -1,37 +1,33 @@
-### ==================================
-### TESTES PARA O SERVIÇO DE USUÁRIOS
-### ==================================
+### 1. Criar um novo usuário para o teste
+POST http://localhost/api/users
+Content-Type: application/json
 
-### Requisição 2: Buscar um usuário que EXISTE
-# Esta requisição testa o endpoint do serviço de usuários para um ID válido (123).
-# Esperamos receber um status 200 OK e os dados do usuário.
-GET http://localhost/api/users/123
+{
+  "name": "Maria Teste MySQL",
+  "email": "maria.mysql@teste.com",
+  "password": "senhaforte"
+}
 
+### 3. Listar TODOS os usuários
+GET http://localhost/api/users
 
-### Requisição 3: Buscar um usuário que NÃO EXISTE
-# Esta requisição testa o tratamento de erro do serviço de usuários.
-# Usamos um ID inválido (999) e esperamos receber um status 404 Not Found.
-GET http://localhost/api/users/69
-
-### ==================================
-### TESTES PARA O ENDPOINT DE LOGIN
-### ==================================
-
-### Tentar login com credenciais CORRETAS
+### 4. Tentar login com as credenciais CORRETAS
 POST http://localhost/api/users/login
 Content-Type: application/json
 
 {
-  "email": "maria@souza.com",
-  "password": "senha456"
+  "email": "maria.mysql@teste.com",
+  "password": "senhaforte"
 }
-
-
-### Tentar login com senha ERRADA
+### 5. Tentar login com senha ERRADA
 POST http://localhost/api/users/login
 Content-Type: application/json
 
 {
-  "email": "maria@souza.com",
-  "password": "senha-errada"
+  "email": "maria.mysql@teste.com",
+  "password": "senhaerrada"
 }
+
+### 6. Buscar usuário por ID (SUCESSO)
+# Substitua <ID_DA_MARIA_AQUI> pelo ID real
+GET http://localhost/api/users/<ID_DA_MARIA_AQUI>
