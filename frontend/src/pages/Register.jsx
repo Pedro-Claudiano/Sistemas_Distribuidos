@@ -1,45 +1,48 @@
 import React, { useState } from 'react';
-import { 
-  Box, 
-  TextField, 
-  Button, 
-  Typography, 
-  CircularProgress, 
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  CircularProgress,
   Alert,
-  InputAdornment,
-  IconButton
+  Link,
+  IconButton,
+  InputAdornment
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 
 export default function Register() {
+  // Estados para os campos do formulário
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Estados para feedback e controlo
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
-  const handleClickShowConfirmPassword = () => setShowConfirmPassword((show) => !show);
   const handleMouseDownPassword = (event) => {
     event.preventDefault();
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (password !== confirmPassword) {
-      setMessage({ type: 'error', text: 'As senhas não coincidem.' });
+    if (!name || !email || !password) {
+      setMessage({ type: 'error', text: 'Por favor, preencha todos os campos.' });
       return;
     }
     setIsLoading(true);
     setMessage('');
+
     try {
-      const response = await fetch('/api/users/register', {
+      // Faz a chamada POST para o endpoint de criação de utilizador
+      const response = await fetch('/api/users', { // Note que a URL é /api/users, não /api/users/login
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
@@ -48,23 +51,37 @@ export default function Register() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Ocorreu um erro ao tentar registrar.');
+        // Trata erros específicos do backend (ex: email duplicado - 409)
+        throw new Error(data.error || 'Ocorreu um erro ao tentar registar.');
       }
+
+      // Se o registo for bem-sucedido
+      setMessage({ type: 'success', text: `Utilizador ${data.name} registado com sucesso! Redirecionando para o login...` });
       
-      setMessage({ type: 'success', text: 'Registro realizado com sucesso! Redirecionando para o login...' });
-      setTimeout(() => navigate('/login'), 2000);
+      // Limpa o formulário
+      setName('');
+      setEmail('');
+      setPassword('');
+
+      // Redireciona para a página de login após um pequeno atraso
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000); // Espera 2 segundos
 
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {
-      setIsLoading(false);
+      // Garante que o estado de carregamento seja desativado, exceto se for redirecionar logo
+      if (!message || message.type !== 'success') {
+         setIsLoading(false);
+      }
     }
   };
 
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%', maxWidth: 400 }}>
       <Typography component="h1" variant="h5" align="center" gutterBottom>
-        Criar Conta
+        Registar Novo Utilizador
       </Typography>
       <TextField
         margin="normal"
@@ -99,7 +116,7 @@ export default function Register() {
         label="Senha"
         type={showPassword ? 'text' : 'password'}
         id="password"
-        autoComplete="new-password"
+        autoComplete="new-password" // Importante para navegadores
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         disabled={isLoading}
@@ -118,35 +135,7 @@ export default function Register() {
           ),
         }}
       />
-      <TextField
-        margin="normal"
-        required
-        fullWidth
-        name="confirmPassword"
-        label="Confirmar Senha"
-        type={showConfirmPassword ? 'text' : 'password'}
-        id="confirmPassword"
-        autoComplete="new-password"
-        value={confirmPassword}
-        onChange={(e) => setConfirmPassword(e.target.value)}
-        disabled={isLoading}
-        error={password !== confirmPassword && confirmPassword !== ''}
-        helperText={password !== confirmPassword && confirmPassword !== '' ? 'As senhas não coincidem' : ''}
-        InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  aria-label="toggle confirm password visibility"
-                  onClick={handleClickShowConfirmPassword}
-                  onMouseDown={handleMouseDownPassword}
-                  edge="end"
-                >
-                  {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-      />
+
       <Button
         type="submit"
         fullWidth
@@ -154,7 +143,7 @@ export default function Register() {
         sx={{ mt: 3, mb: 2 }}
         disabled={isLoading}
       >
-        {isLoading ? <CircularProgress size={24} /> : 'Registrar'}
+        {isLoading ? <CircularProgress size={24} /> : 'Registar'}
       </Button>
       {message && (
         <Alert severity={message.type} sx={{ width: '100%', mt: 2 }}>
@@ -162,7 +151,10 @@ export default function Register() {
         </Alert>
       )}
       <Typography variant="body2" align="center">
-        Já tem uma conta? <RouterLink to="/login">Faça Login</RouterLink>
+        Já tem conta? <Link component={RouterLink} to="/login">Faça login</Link>
+      </Typography>
+      <Typography variant="body2" align="center" sx={{ mt: 1 }}>
+        <RouterLink to="/">Voltar para a página inicial</RouterLink>
       </Typography>
     </Box>
   );

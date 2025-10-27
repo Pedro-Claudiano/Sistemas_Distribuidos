@@ -1,33 +1,132 @@
-### 1. Criar um novo usuário para o teste
+### =======================================
+### FLUXO DE TESTE COMPLETO AUTOMATIZADO
+### =======================================
+
+### 1. Registar um Novo Utilizador (JSON Simplificado para Teste)
+# Endpoint: POST /api/users
+# Cria um utilizador e guarda o seu ID na variável 'userId'.
+@newUserEmail = pedro.automatizado@teste.com
+@newUserPassword = superSenhaAuto123
 POST http://localhost/api/users
 Content-Type: application/json
 
 {
-  "name": "Maria Teste MySQL",
-  "email": "maria.mysql@teste.com",
-  "password": "senhaforte"
+  "name": "Teste",
+  "email": "simples@teste.com",
+  "password": "123"
 }
 
-### 3. Listar TODOS os usuários
+> {%
+  client.global.set("userId", response.body.id);
+  client.log("Utilizador criado com ID: " + response.body.id);
+%}
+
+
+### 2. Fazer Login para Obter o Token JWT
+# Endpoint: POST /api/users/login
+# Usa as credenciais criadas e guarda o token na variável 'authToken'.
+# Note: Usamos as variáveis aqui, pois o problema parece ser no passo 1.
+POST http://localhost/api/users/login
+Content-Type: application/json
+
+{
+  "email": "{{newUserEmail}}",
+  "password": "{{newUserPassword}}"
+}
+
+> {%
+  client.global.set("authToken", response.body.token);
+  client.log("Token JWT obtido!");
+%}
+
+
+### 3. Listar TODOS os utilizadores (Autenticado)
+# Endpoint: GET /api/users
+# Envia o token obtido no passo 2.
 GET http://localhost/api/users
+Authorization: Bearer {{authToken}}
 
-### 4. Tentar login com as credenciais CORRETAS
-POST http://localhost/api/users/login
+
+### 4. Buscar o utilizador criado por ID (Autenticado)
+# Endpoint: GET /api/users/:id
+# Usa o ID guardado no passo 1 e o token do passo 2.
+GET http://localhost/api/users/{{userId}}
+Authorization: Bearer {{authToken}}
+
+
+### 5. Criar uma Nova Reserva (Autenticado)
+# Endpoint: POST /api/reservas
+# Usa o token e o userId guardados. Guarda o ID da reserva criada.
+@roomId = sala-auto-007
+@startTime = 2025-11-20T10:00:00
+@endTime = 2025-11-20T11:00:00
+POST http://localhost/api/reservas
 Content-Type: application/json
+Authorization: Bearer {{authToken}}
 
 {
-  "email": "maria.mysql@teste.com",
-  "password": "senhaforte"
+  "userId": "{{userId}}", # Usa o ID do utilizador criado
+  "room_id": "{{roomId}}",
+  "start_time": "{{startTime}}",
+  "end_time": "{{endTime}}"
 }
-### 5. Tentar login com senha ERRADA
-POST http://localhost/api/users/login
+
+> {%
+  client.global.set("reservationId", response.body.id);
+  client.log("Reserva criada com ID: " + response.body.id);
+%}
+
+
+### 6. Tentar Criar a Mesma Reserva Novamente (Erro - Duplicada)
+# Endpoint: POST /api/reservas
+# Usa o token e os mesmos dados. Espera-se erro 409 Conflict.
+POST http://localhost/api/reservas
 Content-Type: application/json
+Authorization: Bearer {{authToken}}
 
 {
-  "email": "maria.mysql@teste.com",
-  "password": "senhaerrada"
+  "userId": "{{userId}}",
+  "room_id": "{{roomId}}",
+  "start_time": "{{startTime}}",
+  "end_time": "{{endTime}}"
 }
 
-### 6. Buscar usuário por ID (SUCESSO)
-# Substitua <ID_DA_MARIA_AQUI> pelo ID real
-GET http://localhost/api/users/<ID_DA_MARIA_AQUI>
+
+### 7. Listar TODAS as reservas (Autenticado)
+# Endpoint: GET /api/reservas
+# Usa o token. Espera-se ver a reserva criada no passo 5.
+GET http://localhost/api/reservas
+Authorization: Bearer {{authToken}}
+
+
+### 8. Listar reservas do utilizador específico (Autenticado)
+# Endpoint: GET /api/reservas/usuario/:userId
+# Usa o token e o ID do utilizador do passo 1.
+GET http://localhost/api/reservas/usuario/{{userId}}
+Authorization: Bearer {{authToken}}
+
+
+### 9. Deletar a reserva criada (Autenticado)
+# Endpoint: DELETE /api/reservas/:id
+# Usa o token e o ID da reserva guardado no passo 5.
+DELETE http://localhost/api/reservas/{{reservationId}}
+Authorization: Bearer {{authToken}}
+
+
+### 10. Tentar Deletar a mesma reserva novamente (Erro - Não Encontrada)
+# Endpoint: DELETE /api/reservas/:id
+# Usa o token e o ID da reserva já apagada. Espera-se erro 404 Not Found.
+DELETE http://localhost/api/reservas/{{reservationId}}
+Authorization: Bearer {{authToken}}
+
+
+### =======================================
+### TESTES DE HEALTH CHECK (Não Autenticado)
+### =======================================
+
+### Health Check - Serviço de Utilizadores
+GET http://localhost/api/users/health
+
+### Health Check - Serviço de Reservas
+GET http://localhost/api/reservas/health
+

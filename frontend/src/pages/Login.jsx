@@ -49,9 +49,19 @@ export default function Login() {
       if (!response.ok) {
         throw new Error(data.error || 'Ocorreu um erro ao tentar fazer login.');
       }
-      
-      // Se o login for bem-sucedido, redireciona para o dashboard
-      navigate('/dashboard');
+
+      // --- ALTERAÇÃO APLICADA AQUI ---
+      // Verifica se o backend enviou o token
+      if (data.token) {
+        localStorage.setItem('authToken', data.token); // Guarda o token no localStorage
+        console.log("Token JWT guardado com sucesso."); // Mensagem para depuração
+        navigate('/dashboard'); // Redireciona para o dashboard
+      } else {
+        // Se o backend respondeu com sucesso mas sem token, algo está errado
+        console.error("Login bem-sucedido, mas token não recebido do backend.");
+        throw new Error('Falha na autenticação: Token não fornecido.');
+      }
+      // --- FIM DA ALTERAÇÃO ---
 
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -134,4 +144,3 @@ export default function Login() {
     </Box>
   );
 }
-

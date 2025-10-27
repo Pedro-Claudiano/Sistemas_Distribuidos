@@ -1,13 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
+const jwt = require('jsonwebtoken'); // Necessário para validação JWT
+const mysql = require('mysql2/promise'); // Driver MySQL
 
 // ----- INÍCIO: Conexão MySQL -----
-// Importa o driver MySQL com suporte a Promises
-const mysql = require('mysql2/promise');
-
-// Cria o pool de conexões usando as variáveis de ambiente
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -15,168 +12,219 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 3306,
   waitForConnections: true,
-  connectionLimit: 10, // Limite de conexões simultâneas
+  connectionLimit: 10,
   queueLimit: 0
 });
 
-// Testa a conexão inicial (opcional, mas bom para depuração)
 pool.getConnection()
   .then(connection => {
-    console.log(`[Usuários] Conectado ao MySQL no host: ${process.env.DB_HOST} com sucesso!`);
+    console.log(`[Reservas] Conectado ao MySQL no host: ${process.env.DB_HOST} com sucesso!`);
     connection.release();
   })
   .catch(err => {
-    console.error(`[Usuários] ERRO ao conectar ao MySQL: ${err.message}`);
-    // Se não conseguir conectar, talvez seja melhor encerrar o serviço
-    // process.exit(1); 
+    console.error(`[Reservas] ERRO ao conectar ao MySQL: ${err.message}`);
   });
 // ----- FIM: Conexão MySQL -----
 
-
 const app = express();
-const port = process.env.NODE_PORT || 3000;
-const saltRounds = 10;
+const port = process.env.NODE_PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
 
+// ----- INÍCIO: Middleware de Autenticação JWT -----
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Formato "Bearer TOKEN"
 
-// --- ROTA: Criar/Registrar um novo usuário ---
-app.post('/users', async (req, res) => {
-  const { name, email, password } = req.body;
-  console.log(`[Usuários] Recebida requisição para criar usuário com email: ${email}`);
-
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: 'Nome, email e senha são obrigatórios.' });
+  if (token == null) {
+    console.log("[Auth - Reservas] Token não encontrado no cabeçalho Authorization");
+    return res.status(401).json({ error: 'Token de autenticação não fornecido.' });
   }
 
-  let connection; // Define a conexão fora do try para poder usar no finally
-  try {
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-    const userId = uuidv4(); // Usa UUID como ID primário
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+     console.error("[Auth - Reservas] ERRO: JWT_SECRET não está definido!");
+     return res.status(500).json({ error: 'Erro interno do servidor (JWT Config)' });
+  }
 
-    connection = await pool.getConnection(); // Obtém uma conexão do pool
-    
-    // Executa a query SQL para inserir o novo usuário
+  jwt.verify(token, secret, (err, userPayload) => {
+    if (err) {
+      console.log("[Auth - Reservas] Token inválido ou expirado:", err.message);
+      return res.status(403).json({ error: 'Token inválido ou expirado.' }); // Token inválido/expirado
+    }
+    console.log("[Auth - Reservas] Token validado com sucesso para userId:", userPayload.userId);
+    req.user = userPayload; // Adiciona o payload do token (contendo userId) ao objeto req
+    next(); // Passa para a próxima função (a rota principal)
+  });
+}
+// ----- FIM: Middleware de Autenticação JWT -----
+
+
+// --- ROTA PARA CRIAR UMA NOVA RESERVA (Protegida por JWT) ---
+// Aplicamos o middleware ANTES da lógica da rota
+app.post('/reservas', authenticateToken, async (req, res) => {
+  // O userId AGORA VEM do token verificado, não do corpo da requisição
+  const userId = req.user.userId;
+  // Os outros dados vêm do corpo (usando os nomes das colunas SQL)
+  const { room_id, start_time, end_time } = req.body;
+
+  console.log(`[Reservas] Recebida requisição de reserva para sala ${room_id} por usuário ${userId}`);
+
+  if (!userId || !room_id || !start_time || !end_time) {
+    // userId é validado pelo token, mas verificamos os outros campos
+    return res.status(400).json({ error: 'room_id, start_time e end_time são obrigatórios.' });
+  }
+
+  const newReservationId = uuidv4();
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+
+    // Executa a query SQL para inserir a nova reserva
     const [result] = await connection.query(
-      'INSERT INTO Usuarios (id, name, email, password_hash) VALUES (?, ?, ?, ?)',
-      [userId, name, email, passwordHash]
+      'INSERT INTO Reservas (id, user_id, room_id, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
+      [newReservationId, userId, room_id, start_time, end_time]
     );
 
-    console.log(`[Usuários] Usuário ${email} criado com sucesso com ID: ${userId}`);
-    // Retorna os dados do usuário criado (sem o hash da senha)
-    res.status(201).json({ id: userId, name, email });
+    console.log(`[Reservas] Reserva ${newReservationId} criada com sucesso.`);
+    // Retorna os dados da reserva criada
+    res.status(201).json({
+      id: newReservationId,
+      userId, // Confirma o userId do token
+      roomId: room_id, // Pode retornar camelCase para o frontend se preferir
+      startTime: start_time,
+      endTime: end_time
+    });
 
   } catch (err) {
-    // Verifica se o erro é de entrada duplicada (email já existe)
     if (err.code === 'ER_DUP_ENTRY') {
-       console.error(`[Usuários] Erro: Email ${email} já existe.`);
-       res.status(409).json({ error: 'Este email já está registado.' }); // 409 Conflict
+       console.warn(`[Reservas] Tentativa de reserva duplicada para sala ${room_id} às ${start_time}`);
+       res.status(409).json({ error: 'Esta sala já está reservada para este horário.' });
     } else {
-       console.error("Erro ao criar usuário:", err);
-       res.status(500).json({ error: 'Não foi possível criar o usuário.' });
+       console.error("Erro ao criar reserva:", err);
+       res.status(500).json({ error: 'Não foi possível criar a reserva.' });
     }
-  } finally {
-    // Garante que a conexão seja libertada de volta para o pool, mesmo se ocorrer um erro
-    if (connection) connection.release(); 
-  }
-});
-
-
-// --- ROTA: Buscar um usuário pelo ID ---
-app.get('/users/:id', async (req, res) => {
-  const userId = req.params.id;
-  console.log(`[Usuários] Buscando usuário ${userId}`);
-
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    // Executa a query para buscar o usuário pelo ID, excluindo o hash da senha
-    const [rows] = await connection.query(
-      'SELECT id, name, email FROM Usuarios WHERE id = ?', 
-      [userId]
-    );
-
-    if (rows.length > 0) {
-      res.status(200).json(rows[0]); // Retorna o primeiro (e único) resultado
-    } else {
-      res.status(404).json({ error: 'User not found' });
-    }
-  } catch (err) {
-    console.error("Erro ao buscar usuário:", err);
-    res.status(500).json({ error: 'Erro no servidor' });
   } finally {
     if (connection) connection.release();
   }
 });
 
-// --- ROTA: Login do usuário ---
-app.post('/users/login', async (req, res) => {
-  const { email, password } = req.body;
-  console.log(`[Usuários] Tentativa de login para o email: ${email}`);
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
-  }
-
+// --- ROTA PARA LISTAR TODAS AS RESERVAS (Protegida por JWT) ---
+app.get('/reservas', authenticateToken, async (req, res) => {
+  console.log(`[Reservas] Buscando todas as reservas.`);
   let connection;
   try {
     connection = await pool.getConnection();
-    // Busca o usuário pelo email, incluindo o hash da senha para comparação
-    const [rows] = await connection.query(
-      'SELECT id, name, password_hash FROM Usuarios WHERE email = ?', 
-      [email]
-    );
-
-    if (rows.length > 0) {
-      const user = rows[0];
-      // Compara a senha enviada com o hash salvo no banco usando bcrypt
-      const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-
-      if (isPasswordValid) {
-        console.log(`[Usuários] Login bem-sucedido para ${email}`);
-        // No futuro, aqui você geraria e retornaria um Token JWT
-        res.status(200).json({
-          message: 'Login bem-sucedido!',
-          userId: user.id,
-          name: user.name
-        });
-      } else {
-        console.log(`[Usuários] Falha no login (senha inválida) para ${email}`);
-        res.status(401).json({ error: 'Email ou senha inválidos.' });
-      }
-    } else {
-      console.log(`[Usuários] Falha no login (usuário não encontrado) para ${email}`);
-      // Retorna a mesma mensagem genérica para não dar pistas a atacantes
-      res.status(401).json({ error: 'Email ou senha inválidos.' }); 
-    }
-  } catch (err) {
-    console.error("Erro durante o login:", err);
-    res.status(500).json({ error: 'Erro no servidor' });
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-// --- ROTA: Buscar todos os usuários ---
-app.get('/users', async (req, res) => {
-  console.log(`[Usuários] Buscando todos os usuários.`);
-  
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    // Seleciona apenas os campos seguros (sem o hash da senha)
-    const [rows] = await connection.query('SELECT id, name, email FROM Usuarios');
+    const [rows] = await connection.query('SELECT * FROM Reservas');
     res.status(200).json(rows);
   } catch (err) {
-    console.error("Erro ao buscar todos os usuários:", err);
+    console.error("Erro ao buscar todas as reservas:", err);
     res.status(500).json({ error: 'Erro no servidor' });
   } finally {
      if (connection) connection.release();
   }
 });
 
+// --- ROTA PARA LISTAR RESERVAS DE UM USUÁRIO ESPECÍFICO (Protegida por JWT) ---
+app.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
+  const requestedUserId = req.params.userId;
+  // Opcional: Adicionar verificação se o usuário do token pode ver estas reservas
+  console.log(`[Reservas] Buscando reservas para o usuário ${requestedUserId}`);
 
-app.listen(port, () => {
-  console.log(`Serviço de Usuários rodando na porta ${port}`);
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.query(
+      'SELECT * FROM Reservas WHERE user_id = ?',
+      [requestedUserId]
+    );
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error(`Erro ao buscar reservas para o usuário ${requestedUserId}:`, err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
 });
+
+// --- ROTA PARA DELETAR UMA RESERVA (Protegida por JWT) ---
+app.delete('/reservas/:id', authenticateToken, async (req, res) => {
+  const reservationIdToDelete = req.params.id;
+  const userIdFromToken = req.user.userId;
+  console.log(`[Reservas] Usuário ${userIdFromToken} requisitou deletar reserva ${reservationIdToDelete}`);
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    // Adiciona uma verificação extra: só permite apagar se a reserva pertencer ao usuário (ou se for admin, etc.)
+    // Esta lógica pode ser ajustada conforme as regras do seu negócio.
+    const [result] = await connection.query(
+      'DELETE FROM Reservas WHERE id = ? AND user_id = ?', // Adiciona a condição user_id
+      [reservationIdToDelete, userIdFromToken]
+    );
+
+    if (result.affectedRows > 0) {
+      console.log(`[Reservas] Reserva ${reservationIdToDelete} deletada com sucesso pelo usuário ${userIdFromToken}.`);
+      res.status(200).json({ message: "Reserva deletada com sucesso." });
+    } else {
+      // Pode ser que a reserva não exista OU não pertença ao usuário
+      // Para saber a diferença, pode-se fazer um SELECT antes
+      console.log(`[Reservas] Reserva ${reservationIdToDelete} não encontrada ou não pertence ao usuário ${userIdFromToken}.`);
+      res.status(404).json({ error: "Reserva não encontrada ou não pertence ao usuário." });
+    }
+  } catch (err) {
+    console.error(`Erro ao deletar reserva ${reservationIdToDelete}:`, err);
+    res.status(500).json({ error: 'Não foi possível deletar a reserva.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// --- NOVO: Endpoint de Health Check ---
+app.get('/health', async (req, res) => {
+  console.log("[Health Check] Verificando saúde do serviço de reservas...");
+  try {
+    // Tenta obter uma conexão do pool para verificar a saúde do BD
+    const connection = await pool.getConnection();
+    await connection.ping(); // Verifica se o servidor MySQL responde
+    connection.release();
+    console.log("[Health Check] Serviço de reservas OK.");
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error("[Health Check] Serviço de reservas NÃO está saudável:", err.message);
+    res.status(503).send('Service Unavailable'); // 503 Service Unavailable
+  }
+});
+
+
+// Inicia o servidor e guarda a referência
+const server = app.listen(port, () => {
+  console.log(`Serviço de Reservas rodando na porta ${port}`);
+});
+
+// --- NOVO: Lógica de Graceful Shutdown ---
+const gracefulShutdown = async (signal) => {
+  console.log(`\n[Shutdown] Recebido sinal ${signal}. Fechando conexões...`);
+  server.close(async () => {
+    console.log('[Shutdown] Servidor HTTP fechado.');
+    try {
+      await pool.end();
+      console.log('[Shutdown] Pool do MySQL fechado com sucesso.');
+    } catch (err) {
+      console.error('[Shutdown] Erro ao fechar pool do MySQL:', err.message);
+    } finally {
+       console.log('[Shutdown] Encerrando processo.');
+       process.exit(0);
+    }
+  });
+  setTimeout(() => {
+    console.error('[Shutdown] Timeout! Forçando encerramento.');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
