@@ -9,14 +9,10 @@ import {
   Grid,
   Link,
   InputAdornment,
-<<<<<<< HEAD
   IconButton,
   Container,
   Paper,
   Avatar
-=======
-  IconButton
->>>>>>> 88526a0c26a54d0a34f5a73f076cafcdad233532
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
@@ -58,22 +54,7 @@ export default function Login() {
         throw new Error(data.error || 'Ocorreu um erro ao tentar fazer login.');
       }
 
-<<<<<<< HEAD
       navigate('/dashboard');
-=======
-      // --- ALTERAÇÃO APLICADA AQUI ---
-      // Verifica se o backend enviou o token
-      if (data.token) {
-        localStorage.setItem('authToken', data.token); // Guarda o token no localStorage
-        console.log("Token JWT guardado com sucesso."); // Mensagem para depuração
-        navigate('/dashboard'); // Redireciona para o dashboard
-      } else {
-        // Se o backend respondeu com sucesso mas sem token, algo está errado
-        console.error("Login bem-sucedido, mas token não recebido do backend.");
-        throw new Error('Falha na autenticação: Token não fornecido.');
-      }
-      // --- FIM DA ALTERAÇÃO ---
->>>>>>> 88526a0c26a54d0a34f5a73f076cafcdad233532
 
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -83,7 +64,6 @@ export default function Login() {
   };
 
   return (
-<<<<<<< HEAD
     <Container component="main" maxWidth="xs">
       <Box
         sx={{
@@ -92,50 +72,6 @@ export default function Login() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-=======
-    <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%', maxWidth: 400 }}>
-      <Typography component="h1" variant="h5" align="center" gutterBottom>
-        Login
-      </Typography>
-      <TextField
-        margin="normal"
-        required
-        fullWidth
-        id="email"
-        label="Endereço de Email"
-        name="email"
-        autoComplete="email"
-        autoFocus
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        disabled={isLoading}
-      />
-      <TextField
-        margin="normal"
-        required
-        fullWidth
-        name="password"
-        label="Senha"
-        type={showPassword ? 'text' : 'password'}
-        id="password"
-        autoComplete="current-password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        disabled={isLoading}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              <IconButton
-                aria-label="toggle password visibility"
-                onClick={handleClickShowPassword}
-                onMouseDown={handleMouseDownPassword}
-                edge="end"
-              >
-                {showPassword ? <VisibilityOff /> : <Visibility />}
-              </IconButton>
-            </InputAdornment>
-          ),
->>>>>>> 88526a0c26a54d0a34f5a73f076cafcdad233532
         }}
       >
         <Paper
