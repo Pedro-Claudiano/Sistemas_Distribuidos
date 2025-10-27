@@ -1,119 +1,182 @@
-// backend/servico-reservas/server.js
-
 const express = require('express');
 const cors = require('cors');
-const app = express();
-
-// --- ADICIONADO: Importações necessárias para o DynamoDB e IDs ---
-const docClient = require("./dynamoClient");
-const { PutCommand, ScanCommand, GetCommand, DeleteCommand } = require("@aws-sdk/lib-dynamodb");
+const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 
-const port = process.env.NODE_PORT || 3001; // Usando a porta 3001 como padrão para reservas
+// ----- INÍCIO: Conexão MySQL -----
+// Importa o driver MySQL com suporte a Promises
+const mysql = require('mysql2/promise');
+
+// Cria o pool de conexões usando as variáveis de ambiente
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT || 3306,
+  waitForConnections: true,
+  connectionLimit: 10, // Limite de conexões simultâneas
+  queueLimit: 0
+});
+
+// Testa a conexão inicial (opcional, mas bom para depuração)
+pool.getConnection()
+  .then(connection => {
+    console.log(`[Usuários] Conectado ao MySQL no host: ${process.env.DB_HOST} com sucesso!`);
+    connection.release();
+  })
+  .catch(err => {
+    console.error(`[Usuários] ERRO ao conectar ao MySQL: ${err.message}`);
+    // Se não conseguir conectar, talvez seja melhor encerrar o serviço
+    // process.exit(1); 
+  });
+// ----- FIM: Conexão MySQL -----
+
+
+const app = express();
+const port = process.env.NODE_PORT || 3000;
+const saltRounds = 10;
 
 app.use(cors());
 app.use(express.json());
 
 
-// --- ROTA PARA CRIAR UMA NOVA RESERVA ---
-app.post('/reservas', async (req, res) => {
-    // Ex: { userId: "123", salaId: "sala-01", dataInicio: "2025-10-20T14:00:00Z" }
-    const { userId, salaId, dataInicio, dataFim } = req.body; 
-    console.log(`[Reservas] Recebida requisição de reserva para o usuário ${userId}`);
+// --- ROTA: Criar/Registrar um novo usuário ---
+app.post('/users', async (req, res) => {
+  const { name, email, password } = req.body;
+  console.log(`[Usuários] Recebida requisição para criar usuário com email: ${email}`);
 
-    if (!userId || !salaId || !dataInicio || !dataFim) {
-        return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
-    }
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Nome, email e senha são obrigatórios.' });
+  }
 
-    const novaReserva = {
-        id: uuidv4(), // Chave primária da tabela de Reservas
-        userId,
-        salaId,
-        dataInicio,
-        dataFim,
-        criadoEm: new Date().toISOString()
-    };
+  let connection; // Define a conexão fora do try para poder usar no finally
+  try {
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+    const userId = uuidv4(); // Usa UUID como ID primário
 
-    const command = new PutCommand({
-        TableName: "Reservas",
-        Item: novaReserva,
-    });
-
-    try {
-        await docClient.send(command);
-        console.log(`[Reservas] Reserva ${novaReserva.id} criada com sucesso.`);
-        res.status(201).json(novaReserva);
-    } catch (err) {
-        console.error("Erro ao criar reserva:", err);
-        res.status(500).json({ error: 'Não foi possível criar a reserva.' });
-    }
-});
-
-
-// --- ROTA PARA LISTAR TODAS AS RESERVAS ---
-app.get('/reservas', async (req, res) => {
-    console.log(`[Reservas] Buscando todas as reservas.`);
+    connection = await pool.getConnection(); // Obtém uma conexão do pool
     
-    const command = new ScanCommand({
-        TableName: "Reservas",
-    });
+    // Executa a query SQL para inserir o novo usuário
+    const [result] = await connection.query(
+      'INSERT INTO Usuarios (id, name, email, password_hash) VALUES (?, ?, ?, ?)',
+      [userId, name, email, passwordHash]
+    );
 
-    try {
-        const response = await docClient.send(command);
-        res.status(200).json(response.Items);
-    } catch (err) {
-        console.error("Erro ao buscar todas as reservas:", err);
-        res.status(500).json({ error: 'Erro no servidor' });
+    console.log(`[Usuários] Usuário ${email} criado com sucesso com ID: ${userId}`);
+    // Retorna os dados do usuário criado (sem o hash da senha)
+    res.status(201).json({ id: userId, name, email });
+
+  } catch (err) {
+    // Verifica se o erro é de entrada duplicada (email já existe)
+    if (err.code === 'ER_DUP_ENTRY') {
+       console.error(`[Usuários] Erro: Email ${email} já existe.`);
+       res.status(409).json({ error: 'Este email já está registado.' }); // 409 Conflict
+    } else {
+       console.error("Erro ao criar usuário:", err);
+       res.status(500).json({ error: 'Não foi possível criar o usuário.' });
     }
+  } finally {
+    // Garante que a conexão seja libertada de volta para o pool, mesmo se ocorrer um erro
+    if (connection) connection.release(); 
+  }
 });
 
 
-// --- ROTA PARA LISTAR RESERVAS DE UM USUÁRIO ESPECÍFICO ---
-app.get('/reservas/usuario/:userId', async (req, res) => {
-    const { userId } = req.params;
-    console.log(`[Reservas] Buscando reservas para o usuário ${userId}`);
+// --- ROTA: Buscar um usuário pelo ID ---
+app.get('/users/:id', async (req, res) => {
+  const userId = req.params.id;
+  console.log(`[Usuários] Buscando usuário ${userId}`);
 
-    const command = new ScanCommand({
-        TableName: "Reservas",
-        FilterExpression: "userId = :userId",
-        ExpressionAttributeValues: {
-            ":userId": userId,
-        },
-    });
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    // Executa a query para buscar o usuário pelo ID, excluindo o hash da senha
+    const [rows] = await connection.query(
+      'SELECT id, name, email FROM Usuarios WHERE id = ?', 
+      [userId]
+    );
 
-    try {
-        const response = await docClient.send(command);
-        res.status(200).json(response.Items);
-    } catch (err) {
-        console.error(`Erro ao buscar reservas para o usuário ${userId}:`, err);
-        res.status(500).json({ error: 'Erro no servidor' });
+    if (rows.length > 0) {
+      res.status(200).json(rows[0]); // Retorna o primeiro (e único) resultado
+    } else {
+      res.status(404).json({ error: 'User not found' });
     }
+  } catch (err) {
+    console.error("Erro ao buscar usuário:", err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
 });
 
+// --- ROTA: Login do usuário ---
+app.post('/users/login', async (req, res) => {
+  const { email, password } = req.body;
+  console.log(`[Usuários] Tentativa de login para o email: ${email}`);
 
-// --- ROTA PARA DELETAR UMA RESERVA ---
-app.delete('/reservas/:id', async (req, res) => {
-    const { id } = req.params;
-    console.log(`[Reservas] Recebida requisição para deletar reserva ${id}`);
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
+  }
 
-    const command = new DeleteCommand({
-        TableName: "Reservas",
-        Key: {
-            id: id
-        }
-    });
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    // Busca o usuário pelo email, incluindo o hash da senha para comparação
+    const [rows] = await connection.query(
+      'SELECT id, name, password_hash FROM Usuarios WHERE email = ?', 
+      [email]
+    );
 
-    try {
-        await docClient.send(command);
-        console.log(`[Reservas] Reserva ${id} deletada com sucesso.`);
-        res.status(200).json({ message: "Reserva deletada com sucesso." });
-    } catch (err) {
-        console.error(`Erro ao deletar reserva ${id}:`, err);
-        res.status(500).json({ error: 'Não foi possível deletar a reserva.' });
+    if (rows.length > 0) {
+      const user = rows[0];
+      // Compara a senha enviada com o hash salvo no banco usando bcrypt
+      const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+
+      if (isPasswordValid) {
+        console.log(`[Usuários] Login bem-sucedido para ${email}`);
+        // No futuro, aqui você geraria e retornaria um Token JWT
+        res.status(200).json({
+          message: 'Login bem-sucedido!',
+          userId: user.id,
+          name: user.name
+        });
+      } else {
+        console.log(`[Usuários] Falha no login (senha inválida) para ${email}`);
+        res.status(401).json({ error: 'Email ou senha inválidos.' });
+      }
+    } else {
+      console.log(`[Usuários] Falha no login (usuário não encontrado) para ${email}`);
+      // Retorna a mesma mensagem genérica para não dar pistas a atacantes
+      res.status(401).json({ error: 'Email ou senha inválidos.' }); 
     }
+  } catch (err) {
+    console.error("Erro durante o login:", err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// --- ROTA: Buscar todos os usuários ---
+app.get('/users', async (req, res) => {
+  console.log(`[Usuários] Buscando todos os usuários.`);
+  
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    // Seleciona apenas os campos seguros (sem o hash da senha)
+    const [rows] = await connection.query('SELECT id, name, email FROM Usuarios');
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error("Erro ao buscar todos os usuários:", err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+     if (connection) connection.release();
+  }
 });
 
 
 app.listen(port, () => {
-    console.log(`Serviço de Reservas rodando na porta ${port}`);
+  console.log(`Serviço de Usuários rodando na porta ${port}`);
 });

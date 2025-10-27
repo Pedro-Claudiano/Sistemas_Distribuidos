@@ -1,0 +1,1 @@
+CREATE TABLE `Reservas` ( `id` VARCHAR(36) NOT NULL PRIMARY KEY, `user_id` VARCHAR(36) NOT NULL, `room_id` VARCHAR(255) NOT NULL, `start_time` DATETIME NOT NULL, `end_time` DATETIME NOT NULL, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (`user_id`) REFERENCES `Usuarios`(`id`), UNIQUE (`room_id`, `start_time`) );
