@@ -1,19 +1,36 @@
-# docker-compose.yml - VERSÃO CORRETA
 services:
+  # SERVIÇO DO BANCO DE DADOS MYSQL
+  mysql_db:
+    image: mysql:8.0 # Imagem oficial do MySQL 8
+    container_name: mysql_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD} # Password de root do MySQL
+      MYSQL_DATABASE: ${DB_NAME}               # Cria a base de dados automaticamente
+      MYSQL_USER: ${DB_USER}                   # Cria um utilizador normal
+      MYSQL_PASSWORD: ${DB_PASSWORD}           # Password para o utilizador normal
+    ports:
+      # Expõe a porta do MySQL para podermos conectar localmente (ex: com db-migrate)
+      - "${DB_PORT_LOCAL}:${DB_PORT_INTERNAL}" # Ex: 3307:3306
+    volumes:
+      # Mantém os dados do MySQL persistentes mesmo se o contentor for recriado
+      - mysql_data:/var/lib/mysql
+
   usuarios-service:
     build: ./backend/servico-usuarios
     container_name: usuarios-service
     restart: unless-stopped
     environment:
-      # Variáveis para o DynamoDB
-      AWS_ACCESS_KEY_ID: dummykey
-      AWS_SECRET_ACCESS_KEY: dummysecret
-      AWS_REGION: us-east-1
-      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
-      # Variável restante que precisa ser definida
+      # Variáveis para CONECTAR ao MySQL
+      NODE_PORT: 3000
+      DB_HOST: mysql_db # Nome do serviço MySQL definido acima
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_PORT: ${DB_PORT_INTERNAL} # Porta INTERNA do MySQL no container
       JWT_SECRET: ${JWT_SECRET}
     depends_on:
-      - dynamodb-local
+      - mysql_db # Garante que o BD MySQL inicie antes
 
   reservas-service:
     build: ./backend/servico-reservas
@@ -22,15 +39,16 @@ services:
     ports:
       - "3001:3001"
     environment:
-      # Variáveis para o DynamoDB
-      AWS_ACCESS_KEY_ID: dummykey
-      AWS_SECRET_ACCESS_KEY: dummysecret
-      AWS_REGION: us-east-1
-      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
-      # Variável restante que precisa ser definida
+      # Variáveis para CONECTAR ao MySQL
+      NODE_PORT: 3001
+      DB_HOST: mysql_db
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_PORT: ${DB_PORT_INTERNAL}
       JWT_SECRET: ${JWT_SECRET}
     depends_on:
-      - dynamodb-local
+      - mysql_db # Garante que o BD MySQL inicie antes
 
   frontend:
     build:
@@ -44,16 +62,6 @@ services:
       - usuarios-service
       - reservas-service
 
-  # Definição do serviço do DynamoDB Local
-  dynamodb-local:
-    image: amazon/dynamodb-local:latest
-    container_name: dynamodb_local_service
-    restart: always
-    ports:
-      - "8000:8000"
-    volumes:
-      - dynamodb_data:/home/dynamodblocal/data
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ."
-
 volumes:
-  dynamodb_data:
+  mysql_data: # Define o volume para persistir os dados do MySQL
+

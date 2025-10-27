@@ -31,74 +31,67 @@ export default function ForgotPassword() {
 
   return (
     <Container component="main" maxWidth="xs">
-      <Box
+      {/* Removemos a Box externa que tentava centralizar,
+          pois o layout principal (App.jsx) já faz isso. */}
+      <Paper
+        elevation={6}
         sx={{
-          minHeight: '100vh',
+          padding: { xs: 3, sm: 4 },
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
+          borderRadius: 2,
+          width: '100%',
+          mt: 8, // Adiciona margem no topo se necessário
         }}
       >
-        <Paper
-          elevation={6}
-          sx={{
-            padding: { xs: 3, sm: 4 },
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            borderRadius: 2,
-            width: '100%',
-          }}
-        >
-          <Avatar sx={{ m: 1, bgcolor: 'primary.main' }}>
-            <LockResetIcon />
-          </Avatar>
-          <Typography component="h1" variant="h5" sx={{ fontWeight: 600 }}>
-            Recuperar Senha
+        <Avatar sx={{ m: 1, bgcolor: 'primary.main' }}>
+          <LockResetIcon />
+        </Avatar>
+        <Typography component="h1" variant="h5" sx={{ fontWeight: 600 }}>
+          Recuperar Senha
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 3, textAlign: 'center' }}>
+          Insira seu email para receber as instruções.
+        </Typography>
+
+        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%', mt: 1 }}>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="email"
+            label="Endereço de Email"
+            name="email"
+            autoComplete="email"
+            autoFocus
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setMessage(null);
+            }}
+          />
+
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            sx={{ mt: 3, mb: 2 }}
+          >
+            Enviar Email de Recuperação
+          </Button>
+
+          {message && (
+            <Alert severity={message.type} sx={{ width: '100%', mb: 2 }}>
+              {message.text}
+            </Alert>
+          )}
+
+          <Typography variant="body2" align="center">
+            <Link component={RouterLink} to="/login">Voltar para o Login</Link>
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 3, textAlign: 'center' }}>
-            Insira seu email para receber as instruções.
-          </Typography>
-
-          <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%', mt: 1 }}>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="email"
-              label="Endereço de Email"
-              name="email"
-              autoComplete="email"
-              autoFocus
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setMessage(null);
-              }}
-            />
-
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-            >
-              Enviar Email de Recuperação
-            </Button>
-
-            {message && (
-              <Alert severity={message.type} sx={{ width: '100%', mb: 2 }}>
-                {message.text}
-              </Alert>
-            )}
-
-            <Typography variant="body2" align="center">
-              <Link component={RouterLink} to="/login">Voltar para o Login</Link>
-            </Typography>
-          </Box>
-        </Paper>
-      </Box>
+        </Box>
+      </Paper>
     </Container>
   );
 }
