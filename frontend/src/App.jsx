@@ -1,34 +1,25 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import { Outlet } from 'react-router-dom';
-import { 
-  Container, 
-  Box, 
-  CssBaseline, 
-  Switch, 
-  FormGroup, 
-  FormControlLabel, 
-  ThemeProvider, 
-  createTheme 
+import {
+  Container,
+  CssBaseline,
+  ThemeProvider,
+  createTheme,
 } from '@mui/material';
 
 export default function App() {
-  const [mode, setMode] = useState('dark');
-  const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
-
-  const handleThemeChange = () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
-  };
+  const theme = createTheme({
+    palette: {
+      mode: 'light',
+      primary: {
+        main: '#1976d2', // azul padrão do MUI — pode trocar se quiser outra cor
+      },
+    },
+  });
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>
-        <FormGroup>
-          <FormControlLabel
-            control={<Switch checked={mode === 'dark'} onChange={handleThemeChange} />}
-            label={mode === 'dark' ? 'Escuro' : 'Claro'}
-          />
-        </FormGroup>
-      </Box>
+      <CssBaseline />
       <Container
         component="main"
         sx={{
@@ -37,10 +28,10 @@ export default function App() {
           justifyContent: 'center',
           alignItems: 'center',
           minHeight: '100vh',
+          p: 0,
         }}
       >
-        <CssBaseline />
-        <Outlet /> {/* As páginas (Welcome, Login, Register) serão renderizadas aqui */}
+        <Outlet /> {/* As páginas (Login, Register, etc.) serão renderizadas aqui */}
       </Container>
     </ThemeProvider>
   );

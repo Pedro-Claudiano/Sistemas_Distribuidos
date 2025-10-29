@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 import App from './App.jsx';
-import Welcome from './pages/Welcome.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
@@ -18,7 +17,7 @@ const router = createBrowserRouter([
     children: [ // As páginas são "filhas" do layout
       {
         index: true,
-        element: <Welcome />,
+        element: <Login />,
       },
       {
         path: "login",
