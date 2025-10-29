@@ -1,5 +1,6 @@
 import { useState } from "react";
-import InputField from "../components/InputField";
+// Adicionando .jsx para prevenir o erro de compilação anterior
+import InputField from "../components/InputField.jsx";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -34,34 +35,39 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="login-container">
-      <h2 className="form-title">Recuperar Senha</h2>
-      <p className="separator"><span>Não se preocupe, acontece.</span></p>
+    <>
+      <h1 className="app-logo">SIRESA</h1>
 
-      <form className="login-form" onSubmit={handleSubmit}>
-        <InputField
-          type="email"
-          placeholder="Endereço de Email"
-          icon="mail"
-          value={email}
-          onChange={(e) => { setEmail(e.target.value); if (message) setMessage(null); }}
-        />
+      <div className="login-container">
+        <h2 className="form-title">Recuperar Senha</h2>
+        <p className="separator"><span>Não se preocupe, acontece.</span></p>
 
-        {message && <div className={`alert ${message.type}`} style={{
-          color: message.type === "error" ? "red" : "green",
-          marginBottom: "1rem"
-        }}>{message.text}</div>}
+        <form className="login-form" onSubmit={handleSubmit}>
+          <InputField
+            type="email"
+            placeholder="Endereço de Email"
+            icon="mail"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); if (message) setMessage(null); }}
+          />
 
-        <button type="submit" className="login-button" disabled={isLoading || submitted}>
-          {isLoading ? "Enviando..." : "Enviar Email"}
-        </button>
-      </form>
+          {message && (
+            <div className={`form-message ${message.type}`}>
+              {message.text}
+            </div>
+          )}
 
-      <p className="signup-prompt">
-        <a href="/login" style={{ pointerEvents: submitted ? "none" : "auto", opacity: submitted ? 0.7 : 1 }}>
-          Voltar para o Login
-        </a>
-      </p>
-    </div>
+          <button type="submit" className="login-button" disabled={isLoading || submitted}>
+            {isLoading ? "Enviando..." : "Enviar Email"}
+          </button>
+        </form>
+
+        <p className="signup-prompt">
+          <a href="/login" style={{ pointerEvents: submitted ? "none" : "auto", opacity: submitted ? 0.7 : 1 }}>
+            Voltar para o Login
+          </a>
+        </p>
+      </div>
+    </>
   );
 }

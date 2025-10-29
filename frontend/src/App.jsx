@@ -1,38 +1,35 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import {
-  Container,
   CssBaseline,
   ThemeProvider,
   createTheme,
 } from '@mui/material';
 
+// Vamos manter o tema do MUI, caso você queira usar
+// componentes dele dentro das páginas, mas vamos remover
+// o 'Container' daqui para deixar o 'index.css' controlar o layout.
 export default function App() {
   const theme = createTheme({
     palette: {
       mode: 'light',
       primary: {
-        main: '#1976d2', // azul padrão do MUI — pode trocar se quiser outra cor
+        main: '#5F41E4', // Usando a cor primária do seu CSS
       },
+    },
+    typography: {
+      fontFamily: '"Montserrat", sans-serif', // Usando a fonte do seu CSS
     },
   });
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Container
-        component="main"
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '100vh',
-          p: 0,
-        }}
-      >
-        <Outlet /> {/* As páginas (Login, Register, etc.) serão renderizadas aqui */}
-      </Container>
+      {/* O Outlet agora renderiza as páginas (Login, Register, etc.) 
+        diretamente. O seu 'index.css' vai aplicar o fundo roxo
+        ao 'body' e o '.login-container' vai se centralizar.
+      */}
+      <Outlet />
     </ThemeProvider>
   );
 }

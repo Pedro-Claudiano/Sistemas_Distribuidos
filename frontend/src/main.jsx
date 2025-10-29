@@ -7,9 +7,9 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import RoomSelection from './pages/RoomSelection.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx'; 
 import './index.css';
 
-// Criação do roteador com o mapa do site
 const router = createBrowserRouter([
   {
     path: "/",
@@ -35,6 +35,11 @@ const router = createBrowserRouter([
         path:"dashboard",
         element: <RoomSelection />,
       },
+      // --- 2. ADICIONAR A NOVA ROTA ---
+      {
+        path: "admin", // O caminho será /admin
+        element: <AdminDashboard />,
+      },
     ],
   },
 ]);
@@ -44,4 +49,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <RouterProvider router={router} />
   </React.StrictMode>,
 );
-
