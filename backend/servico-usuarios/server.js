@@ -29,6 +29,9 @@ pool.getConnection()
 
 
 const app = express();
+// CRIAMOS UM ROUTER SEPARADO PARA A API
+const apiRouter = express.Router();
+
 const port = process.env.NODE_PORT || 3000;
 const saltRounds = 10;
 
@@ -37,7 +40,8 @@ app.use(express.json());
 
 
 // --- ROTA: Criar/Registrar um novo usuário ---
-app.post('/users', async (req, res) => {
+// MUDANÇA: de app.post para apiRouter.post
+apiRouter.post('/users', async (req, res) => {
   const { name, email, password } = req.body;
   console.log(`[Usuários] Recebida requisição para criar usuário com email: ${email}`);
   if (!name || !email || !password) {
@@ -56,11 +60,11 @@ app.post('/users', async (req, res) => {
     res.status(201).json({ id: userId, name, email });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
-       console.error(`[Usuários] Erro: Email ${email} já existe.`);
-       res.status(409).json({ error: 'Este email já está registado.' });
+      console.error(`[Usuários] Erro: Email ${email} já existe.`);
+      res.status(409).json({ error: 'Este email já está registado.' });
     } else {
-       console.error("Erro ao criar usuário:", err);
-       res.status(500).json({ error: 'Não foi possível criar o usuário.' });
+      console.error("Erro ao criar usuário:", err);
+      res.status(500).json({ error: 'Não foi possível criar o usuário.' });
     }
   } finally {
     if (connection) connection.release();
@@ -69,7 +73,8 @@ app.post('/users', async (req, res) => {
 
 
 // --- ROTA: Buscar um usuário pelo ID ---
-app.get('/users/:id', async (req, res) => {
+// MUDANÇA: de app.get para apiRouter.get
+apiRouter.get('/users/:id', async (req, res) => {
   const userId = req.params.id;
   console.log(`[Usuários] Buscando usuário ${userId}`);
   let connection;
@@ -93,7 +98,8 @@ app.get('/users/:id', async (req, res) => {
 });
 
 // --- ROTA: Login do usuário ---
-app.post('/users/login', async (req, res) => {
+// MUDANÇA: de app.post para apiRouter.post
+apiRouter.post('/users/login', async (req, res) => {
   const { email, password } = req.body;
   console.log(`[Usuários] Tentativa de login para o email: ${email}`);
   if (!email || !password) {
@@ -142,7 +148,8 @@ app.post('/users/login', async (req, res) => {
 });
 
 // --- ROTA: Buscar todos os usuários ---
-app.get('/users', async (req, res) => {
+// MUDANÇA: de app.get para apiRouter.get
+apiRouter.get('/users', async (req, res) => {
   console.log(`[Usuários] Buscando todos os usuários.`);
   let connection;
   try {
@@ -157,21 +164,23 @@ app.get('/users', async (req, res) => {
   }
 });
 
-// --- NOVO: Endpoint de Health Check ---
+// --- NOVO: Endpoint de Health Check (direto no 'app') ---
 app.get('/health', async (req, res) => {
   console.log("[Health Check] Verificando saúde do serviço de usuários...");
   try {
-    // Tenta obter uma conexão do pool para verificar a saúde do BD
     const connection = await pool.getConnection();
-    await connection.ping(); // Verifica se o servidor MySQL responde
+    await connection.ping(); 
     connection.release();
     console.log("[Health Check] Serviço de usuários OK.");
     res.status(200).send('OK');
   } catch (err) {
     console.error("[Health Check] Serviço de usuários NÃO está saudável:", err.message);
-    res.status(503).send('Service Unavailable'); // 503 Service Unavailable
+    res.status(503).send('Service Unavailable'); 
   }
 });
+
+// --- NOVO: Registra o router da API com o prefixo /api ---
+app.use('/api', apiRouter);
 
 
 // Inicia o servidor e guarda a referência para poder fechá-lo depois
@@ -194,9 +203,9 @@ const gracefulShutdown = async (signal) => {
     } catch (err) {
       console.error('[Shutdown] Erro ao fechar pool do MySQL:', err.message);
     } finally {
-       // 3. Encerra o processo
-       console.log('[Shutdown] Encerrando processo.');
-       process.exit(0);
+      // 3. Encerra o processo
+      console.log('[Shutdown] Encerrando processo.');
+      process.exit(0);
     }
   });
 
@@ -210,4 +219,3 @@ const gracefulShutdown = async (signal) => {
 // Ouve os sinais de encerramento
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM')); // Sinal padrão do Docker/ECS/Kubernetes
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));   // Sinal de Ctrl+C no terminal
-

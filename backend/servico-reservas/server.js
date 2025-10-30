@@ -27,12 +27,16 @@ pool.getConnection()
 // ----- FIM: Conexão MySQL -----
 
 const app = express();
+// CRIAMOS UM ROUTER SEPARADO PARA A API
+const apiRouter = express.Router();
+
 const port = process.env.NODE_PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
 
 // ----- INÍCIO: Middleware de Autenticação JWT -----
+// MUDANÇA: Este middleware será usado pelo apiRouter
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Formato "Bearer TOKEN"
@@ -62,8 +66,8 @@ function authenticateToken(req, res, next) {
 
 
 // --- ROTA PARA CRIAR UMA NOVA RESERVA (Protegida por JWT) ---
-// Aplicamos o middleware ANTES da lógica da rota
-app.post('/reservas', authenticateToken, async (req, res) => {
+// MUDANÇA: de app.post para apiRouter.post
+apiRouter.post('/reservas', authenticateToken, async (req, res) => {
   // O userId AGORA VEM do token verificado, não do corpo da requisição
   const userId = req.user.userId;
   // Os outros dados vêm do corpo (usando os nomes das colunas SQL)
@@ -100,11 +104,11 @@ app.post('/reservas', authenticateToken, async (req, res) => {
 
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
-       console.warn(`[Reservas] Tentativa de reserva duplicada para sala ${room_id} às ${start_time}`);
-       res.status(409).json({ error: 'Esta sala já está reservada para este horário.' });
+      console.warn(`[Reservas] Tentativa de reserva duplicada para sala ${room_id} às ${start_time}`);
+      res.status(409).json({ error: 'Esta sala já está reservada para este horário.' });
     } else {
-       console.error("Erro ao criar reserva:", err);
-       res.status(500).json({ error: 'Não foi possível criar a reserva.' });
+      console.error("Erro ao criar reserva:", err);
+      res.status(500).json({ error: 'Não foi possível criar a reserva.' });
     }
   } finally {
     if (connection) connection.release();
@@ -112,7 +116,8 @@ app.post('/reservas', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA LISTAR TODAS AS RESERVAS (Protegida por JWT) ---
-app.get('/reservas', authenticateToken, async (req, res) => {
+// MUDANÇA: de app.get para apiRouter.get
+apiRouter.get('/reservas', authenticateToken, async (req, res) => {
   console.log(`[Reservas] Buscando todas as reservas.`);
   let connection;
   try {
@@ -128,7 +133,8 @@ app.get('/reservas', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA LISTAR RESERVAS DE UM USUÁRIO ESPECÍFICO (Protegida por JWT) ---
-app.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
+// MUDANÇA: de app.get para apiRouter.get
+apiRouter.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
   const requestedUserId = req.params.userId;
   // Opcional: Adicionar verificação se o usuário do token pode ver estas reservas
   console.log(`[Reservas] Buscando reservas para o usuário ${requestedUserId}`);
@@ -150,7 +156,8 @@ app.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA DELETAR UMA RESERVA (Protegida por JWT) ---
-app.delete('/reservas/:id', authenticateToken, async (req, res) => {
+// MUDANÇA: de app.delete para apiRouter.delete
+apiRouter.delete('/reservas/:id', authenticateToken, async (req, res) => {
   const reservationIdToDelete = req.params.id;
   const userIdFromToken = req.user.userId;
   console.log(`[Reservas] Usuário ${userIdFromToken} requisitou deletar reserva ${reservationIdToDelete}`);
@@ -182,7 +189,7 @@ app.delete('/reservas/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// --- NOVO: Endpoint de Health Check ---
+// --- NOVO: Endpoint de Health Check (direto no 'app') ---
 app.get('/health', async (req, res) => {
   console.log("[Health Check] Verificando saúde do serviço de reservas...");
   try {
@@ -197,6 +204,9 @@ app.get('/health', async (req, res) => {
     res.status(503).send('Service Unavailable'); // 503 Service Unavailable
   }
 });
+
+// --- NOVO: Registra o router da API com o prefixo /api ---
+app.use('/api', apiRouter);
 
 
 // Inicia o servidor e guarda a referência
@@ -227,4 +237,3 @@ const gracefulShutdown = async (signal) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
