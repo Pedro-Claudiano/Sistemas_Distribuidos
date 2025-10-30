@@ -29,3 +29,4 @@ const InputField = ({ type, placeholder, icon, value, onChange }) => {
 };
 
 export default InputField;
+

@@ -38,39 +38,44 @@ export default function Login() {
   };
 
   return (
-    <div className="login-container">
-      <h2 className="form-title">Bem-vindo de volta!</h2>
-      <p className="separator"><span>Faça login para continuar</span></p>
-      <form className="login-form" onSubmit={handleSubmit}>
-        <InputField
-          type="email"
-          placeholder="Endereço de Email"
-          icon="mail"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <InputField
-          type="password"
-          placeholder="Senha"
-          icon="lock"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+    <>
+      <h1 className="app-logo">SIRESA</h1>
 
-        {message && (
-          <div className={`alert ${message.type}`} style={{ marginBottom: "1rem", color: "red" }}>
-            {message.text}
-          </div>
-        )}
+      <div className="login-container">
+        <h2 className="form-title">Bem-vindo de volta!</h2>
+        <p className="separator"><span>Faça login para continuar</span></p>
+        <form className="login-form" onSubmit={handleSubmit}>
+          <InputField
+            type="email"
+            placeholder="Endereço de Email"
+            icon="mail"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <InputField
+            type="password"
+            placeholder="Senha"
+            icon="lock"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-        <a href="/forgot-password" className="forgot-password-link">Esqueceu a senha?</a>
-        <button type="submit" className="login-button" disabled={isLoading}>
-          {isLoading ? "Carregando..." : "Entrar"}
-        </button>
-      </form>
-      <p className="signup-prompt">
-        Não tem uma conta? <a href="/register">Registre-se</a>
-      </p>
-    </div>
+          {message && (
+            <div className={`form-message ${message.type}`}>
+              {message.text}
+            </div>
+          )}
+
+          <a href="/forgot-password" className="forgot-password-link">Esqueceu a senha?</a>
+          <button type="submit" className="login-button" disabled={isLoading}>
+            {isLoading ? "Carregando..." : "Entrar"}
+          </button>
+        </form>
+        <p className="signup-prompt">
+          Não tem uma conta? <a href="/register">Registre-se</a>
+        </p>
+      </div>
+    </>
   );
 }
+
