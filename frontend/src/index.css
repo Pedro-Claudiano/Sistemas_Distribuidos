@@ -1,22 +1,492 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded');
 
-:root {
-  font-family: 'Poppins', system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-html, body, #root {
-  height: 100%;
+* {
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
+  font-family: "Montserrat", sans-serif;
 }
 
 body {
-  background-color: #f4f6f8; 
-  overflow: hidden; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #ffffff;
+  padding: 2rem;
+  position: relative;
 }
+
+/* ==============================================
+  ESTILO PARA O LOGO "SIRESA"
+  ==============================================
+*/
+.app-logo {
+  position: absolute;
+  top: 1.5rem;
+  left: 2rem;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #5F41E4;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  letter-spacing: 1.5px;
+  z-index: 10;
+}
+
+#root {
+  width: 100%;
+}
+
+/* ==============================================
+  ESTILOS DO CONTAINER (LOGIN, REGISTER, ETC)
+  ==============================================
+*/
+.login-container {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 450px;
+  padding: 2rem 1.5rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 5;
+  margin-top: 3rem; /* Garante espaço abaixo do logo */
+}
+
+.form-title {
+  text-align: center;
+  font-size: 1.37rem;
+  font-weight: 600;
+  margin-bottom: 2rem;
+}
+
+.separator {
+  position: relative;
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+.separator span {
+  z-index: 1;
+  font-weight: 500;
+  color: #6652BE;
+  position: relative;
+  background: #fff;
+  font-size: 1.06rem;
+  padding: 0 0.9rem;
+}
+
+.separator::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 1px;
+  width: 100%;
+  background: #bfb3f2;
+}
+
+/* ==============================================
+  ESTILOS DOS INPUTS
+  ==============================================
+*/
+.input-wrapper {
+  height: 54px;
+  width: 100%;
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.input-field {
+  width: 100%;
+  height: 100%;
+  outline: none;
+  font-size: 1.06rem;
+  border-radius: 0.31rem;
+  border: 1px solid #bfb3f2;
+  padding: 0px 1.25rem 0 3.12rem;
+  transition: 0.2s ease;
+}
+
+.input-field:focus {
+  border-color: #5F41E4;
+}
+
+.input-field::placeholder {
+  color: #9284c8;
+}
+
+.input-wrapper i {
+  position: absolute;
+  top: 50%;
+  height: 100%;
+  display: flex;
+  color: #a395e0;
+  align-items: center;
+  transform: translateY(-50%);
+  transition: 0.2s ease;
+}
+
+.input-wrapper i:not(.eye-icon) {
+  left: 0.93rem;
+  pointer-events: none;
+}
+
+.eye-icon {
+  display: none;
+  right: 0.93rem;
+  color: #917DE8;
+  cursor: pointer;
+  font-size: 1.25rem;
+}
+
+.input-field:valid ~ .eye-icon {
+  display: flex;
+}
+
+/* ==============================================
+  BOTÕES E LINKS
+  ==============================================
+*/
+.forgot-password-link {
+  display: block;
+  width: fit-content;
+  margin-top: -0.44rem;
+  margin-bottom: 0.5rem;
+}
+
+.login-button {
+  border: none;
+  outline: none;
+  width: 100%;
+  height: 54px;
+  color: #fff;
+  font-size: 1.125rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 2rem;
+  border-radius: 0.31rem;
+  background: #5F41E4;
+  transition: 0.3s ease;
+}
+
+.login-button:hover:not(:disabled) {
+  background: #4320df;
+}
+
+.login-button:disabled {
+  background: #a395e0;
+  cursor: not-allowed;
+}
+
+.signup-prompt {
+  text-align: center;
+  font-size: 1.06rem;
+  font-weight: 500;
+  margin: 1.75rem 0 0.31rem;
+}
+
+a {
+  color: #5F41E4;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* ==============================================
+  MENSAGENS DE FEEDBACK (ERRO/SUCESSO)
+  ==============================================
+*/
+.form-message {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0.31rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+  text-align: center;
+}
+
+.form-message.error {
+  color: #721c24;
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+}
+
+.form-message.success {
+  color: #155724;
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+}
+
+/* ==============================================
+  ESTILOS DO DASHBOARD ADMIN
+  ==============================================
+*/
+
+.admin-dashboard {
+  /* Torna o container mais largo que o de login */
+  max-width: 900px;
+}
+
+.form-title-secondary {
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: #333;
+}
+
+.login-button.add-button {
+  background: #28a745; /* Verde para "Cadastrar" */
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+}
+.login-button.add-button:hover:not(:disabled) {
+  background: #218838;
+}
+
+/* Estilos da Tabela */
+.room-list {
+  width: 100%;
+  overflow-x: auto; /* Responsividade para tabela */
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+table th, table td {
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  text-align: left;
+  vertical-align: middle;
+}
+
+table th {
+  background-color: #f4f2ff;
+  font-weight: 600;
+  color: #5F41E4;
+}
+
+table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.room-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap; /* Permite que botões quebrem a linha em telas pequenas */
+}
+
+.action-btn {
+  border: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #fff;
+  transition: transform 0.2s ease;
+}
+
+.action-btn:hover {
+  transform: scale(1.05);
+}
+
+.action-btn.edit {
+  background-color: #ffc107; /* Amarelo */
+  color: #333;
+}
+.action-btn.delete {
+  background-color: #dc3545; /* Vermelho */
+}
+
+/* Ações do Formulário (Salvar/Cancelar) */
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.form-actions .login-button {
+  margin-top: 0;
+  flex: 1; /* Faz os botões terem o mesmo tamanho */
+}
+
+.login-button.cancel {
+  background: #6c757d; /* Cinza */
+}
+.login-button.cancel:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+/* ==============================================
+  NOVOS ESTILOS: HEADER DO USUÁRIO
+  ==============================================
+*/
+
+/* "Bem-vindo" no Centro Superior */
+.page-welcome-message {
+  position: absolute;
+  top: 2rem; /* Alinhado com o logo/ícones */
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #ffffff; /* Cor branca para ser visível */
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  z-index: 10;
+  display: none; /* Escondido em telas pequenas por padrão */
+}
+
+/* Ícones no Canto Superior Direito */
+.page-user-actions {
+  position: absolute;
+  top: 1.5rem;
+  right: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 10;
+}
+
+.page-user-actions .user-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.page-user-actions .header-icon {
+  color: #5F41E4; /* Cor branca para ser visível */
+  text-decoration: none;
+  padding: 0.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.page-user-actions .header-icon:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.page-user-actions .header-icon .material-symbols-rounded {
+  font-size: 24px;
+}
+
+/* ==============================================
+  ESTILOS DA PÁGINA DE PERFIL 
+  ==============================================
+*/
+.profile-name-display {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: #f4f2ff;
+  border-radius: 0.31rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #bfb3f2;
+}
+.profile-name-display i {
+  color: #5F41E4;
+  font-size: 2rem;
+}
+.profile-name-display span {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.profile-actions-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.login-button.delete-action {
+  background: #dc3545; 
+  margin-top: 0;
+}
+.login-button.delete-action:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.page-user-actions .header-button {
+  color: #fff; /* Texto branco */
+  background: #5F41E4; /* Fundo roxo (estilo de botão principal) */
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.9rem; /* Padding para parecer um botão */
+  border-radius: 0.31rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  height: 40px; /* Garante a mesma altura do ícone */
+  box-sizing: border-box; /* Garante que o padding não estoure a altura */
+}
+.page-user-actions .header-button:hover {
+  background: #4320df; /* Roxo mais escuro no hover */
+}
+
+
+/* =G ... (Seu CSS de Media Queries) ... */
+@media (max-width: 480px) {
+  body {
+    padding: 1rem;
+  }
+  
+  .app-logo {
+    top: 1rem;
+    left: 1rem;
+    font-size: 1.5rem;
+  }
+
+  .login-container {
+    padding: 1.5rem 1rem;
+    margin-top: 4rem; 
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  /* Ajuste do header (seu código) */
+   .page-user-actions {
+    top: 1rem;
+    right: 1rem;
+  }
+  .page-user-actions .header-icon {
+    padding: 0.3rem;
+  }
+  .page-welcome-message {
+    display: none;
+  }
+
+  /* Ajuste do novo botão de texto */
+  .page-user-actions .header-button {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.9rem;
+      height: auto;
+  }
+}
+
+@media (min-width: 640px) {
+  .page-welcome-message {
+    display: block; 
+  }
+}
+
+

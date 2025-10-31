@@ -1,97 +1,73 @@
-import React, { useState } from 'react';
-import {
-  Typography,
-  Box,
-  TextField,
-  Button,
-  Link,
-  Container,
-  Paper,
-  Avatar,
-  Alert
-} from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
-import LockResetIcon from '@mui/icons-material/LockReset';
+import { useState } from "react";
+// Adicionando .jsx para prevenir o erro de compilação anterior
+import InputField from "../components/InputField.jsx";
 
 export default function ForgotPassword() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!email) {
-      setMessage({ type: 'error', text: 'Por favor, preencha o campo de email.' });
+      setMessage({ type: "error", text: "Por favor, preencha o campo de email." });
       return;
     }
 
-    setMessage({ type: 'success', text: 'Se este email estiver cadastrado, você receberá as instruções.' });
-    // Lógica da API aqui
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      // Simulação de envio
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      setMessage({
+        type: "success",
+        text: "Se este email estiver cadastrado, você receberá as instruções."
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setMessage({ type: "error", text: "Ocorreu um erro. Tente novamente." });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <Container component="main" maxWidth="xs">
-      {/* Removemos a Box externa que tentava centralizar,
-          pois o layout principal (App.jsx) já faz isso. */}
-      <Paper
-        elevation={6}
-        sx={{
-          padding: { xs: 3, sm: 4 },
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          borderRadius: 2,
-          width: '100%',
-          mt: 8, // Adiciona margem no topo se necessário
-        }}
-      >
-        <Avatar sx={{ m: 1, bgcolor: 'primary.main' }}>
-          <LockResetIcon />
-        </Avatar>
-        <Typography component="h1" variant="h5" sx={{ fontWeight: 600 }}>
-          Recuperar Senha
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 3, textAlign: 'center' }}>
-          Insira seu email para receber as instruções.
-        </Typography>
+    <>
+      <h1 className="app-logo">SIRESA</h1>
 
-        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%', mt: 1 }}>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="email"
-            label="Endereço de Email"
-            name="email"
-            autoComplete="email"
-            autoFocus
+      <div className="login-container">
+        <h2 className="form-title">Recuperar Senha</h2>
+        <p className="separator"><span>Não se preocupe, acontece.</span></p>
+
+        <form className="login-form" onSubmit={handleSubmit}>
+          <InputField
+            type="email"
+            placeholder="Endereço de Email"
+            icon="mail"
             value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setMessage(null);
-            }}
+            onChange={(e) => { setEmail(e.target.value); if (message) setMessage(null); }}
           />
 
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2 }}
-          >
-            Enviar Email de Recuperação
-          </Button>
-
           {message && (
-            <Alert severity={message.type} sx={{ width: '100%', mb: 2 }}>
+            <div className={`form-message ${message.type}`}>
               {message.text}
-            </Alert>
+            </div>
           )}
 
-          <Typography variant="body2" align="center">
-            <Link component={RouterLink} to="/login">Voltar para o Login</Link>
-          </Typography>
-        </Box>
-      </Paper>
-    </Container>
+          <button type="submit" className="login-button" disabled={isLoading || submitted}>
+            {isLoading ? "Enviando..." : "Enviar Email"}
+          </button>
+        </form>
+
+        <p className="signup-prompt">
+          <a href="/login" style={{ pointerEvents: submitted ? "none" : "auto", opacity: submitted ? 0.7 : 1 }}>
+            Voltar para o Login
+          </a>
+        </p>
+      </div>
+    </>
   );
 }

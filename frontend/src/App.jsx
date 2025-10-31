@@ -1,47 +1,35 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import { Outlet } from 'react-router-dom';
-import { 
-  Container, 
-  Box, 
-  CssBaseline, 
-  Switch, 
-  FormGroup, 
-  FormControlLabel, 
-  ThemeProvider, 
-  createTheme 
+import {
+  CssBaseline,
+  ThemeProvider,
+  createTheme,
 } from '@mui/material';
 
+// Vamos manter o tema do MUI, caso você queira usar
+// componentes dele dentro das páginas, mas vamos remover
+// o 'Container' daqui para deixar o 'index.css' controlar o layout.
 export default function App() {
-  const [mode, setMode] = useState('dark');
-  const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
-
-  const handleThemeChange = () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
-  };
+  const theme = createTheme({
+    palette: {
+      mode: 'light',
+      primary: {
+        main: '#5F41E4', // Usando a cor primária do seu CSS
+      },
+    },
+    typography: {
+      fontFamily: '"Montserrat", sans-serif', // Usando a fonte do seu CSS
+    },
+  });
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>
-        <FormGroup>
-          <FormControlLabel
-            control={<Switch checked={mode === 'dark'} onChange={handleThemeChange} />}
-            label={mode === 'dark' ? 'Escuro' : 'Claro'}
-          />
-        </FormGroup>
-      </Box>
-      <Container
-        component="main"
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '100vh',
-        }}
-      >
-        <CssBaseline />
-        <Outlet /> {/* As páginas (Welcome, Login, Register) serão renderizadas aqui */}
-      </Container>
+      <CssBaseline />
+      {/* O Outlet agora renderiza as páginas (Login, Register, etc.) 
+        diretamente. O seu 'index.css' vai aplicar o fundo roxo
+        ao 'body' e o '.login-container' vai se centralizar.
+      */}
+      <Outlet />
     </ThemeProvider>
   );
 }
