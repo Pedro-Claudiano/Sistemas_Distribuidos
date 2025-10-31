@@ -117,12 +117,9 @@ export default function RoomSelection() {
   };
 
   return (
-    // Removido o <LocalizationProvider>
     <>
-      {/* 1. O logo (pego pelo CSS global) */}
       <h1 className="app-logo">SIRESA</h1>
 
-      {/* 2. Os botões de usuário (NOVO ELEMENTO) */}
       <div className="page-user-actions">
         <span className="welcome-message">Bem-vindo, {userName}</span>
         <div className="user-actions">
@@ -135,13 +132,11 @@ export default function RoomSelection() {
         </div>
       </div>
 
-      {/* 3. O container principal (centralizado pelo body) */}
       <div className="login-container admin-dashboard">
         <h2 className="form-title">Reservar Sala</h2>
         <p className="separator"><span>Escolha a data, sala e horário</span></p>
 
         <form className="login-form" onSubmit={handleConfirmClick}>
-          {/* 1. SELETOR DE SALA */}
           <div className="input-wrapper">
             <select
               className="input-field select-field"
@@ -160,7 +155,6 @@ export default function RoomSelection() {
             <i className="material-symbols-rounded">meeting_room</i>
           </div>
 
-          {/* 2. SELETOR DE DATA (NATIVO - SEM MUI) */}
           <div className="input-wrapper">
             <input
               type="date"
@@ -171,12 +165,9 @@ export default function RoomSelection() {
               disabled={isLoading}
               required
             />
-            {/* Este é o único ícone que vai aparecer (à esquerda) */}
             <i className="material-symbols-rounded">calendar_month</i>
           </div>
 
-
-          {/* 3. SELETOR DE HORÁRIO */}
           <div className="input-wrapper">
             <select
               className="input-field select-field"
@@ -204,7 +195,6 @@ export default function RoomSelection() {
             <i className="material-symbols-rounded">schedule</i>
           </div>
 
-          {/* MENSAGENS E BOTÃO */}
           {message && (
             <div className={`form-message ${message.type}`}>
               {message.text}
