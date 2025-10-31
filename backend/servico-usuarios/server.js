@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const mysql = require('mysql2/promise');
 
-// ----- INÍCIO: Conexão MySQL -----
+// ----- INÍCIO: Conexão MySQL (MODIFICADO COM RETENTATIVAS) -----
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -14,18 +14,39 @@ const pool = mysql.createPool({
   port: process.env.DB_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  // Adiciona um timeout para a tentativa de conexão
+  connectTimeout: 10000 
 });
 
-pool.getConnection()
-  .then(connection => {
-    console.log(`[Usuários] Conectado ao MySQL no host: ${process.env.DB_HOST} com sucesso!`);
-    connection.release();
-  })
-  .catch(err => {
-    console.error(`[Usuários] ERRO ao conectar ao MySQL: ${err.message}`);
-  });
-// ----- FIM: Conexão MySQL -----
+// Função para tentar conectar ao MySQL com retentativas
+const connectToMySQL = async () => {
+  let retries = 5; // Tenta 5 vezes
+  while (retries) {
+    try {
+      const connection = await pool.getConnection();
+      // Log de sucesso ajustado para [Usuários]
+      console.log(`[Usuários] Conectado ao MySQL no host: ${process.env.DB_HOST} com sucesso!`);
+      connection.release();
+      break; // Sucesso, sai do loop
+    } catch (err) {
+      // Log de erro ajustado para [Usuários]
+      console.error(`[Usuários] ERRO ao conectar ao MySQL: ${err.message}. Tentando novamente em 5s... (${retries} tentativas restantes)`);
+      retries -= 1;
+      // Espera 5 segundos antes de tentar de novo
+      await new Promise(res => setTimeout(res, 5000));
+    }
+  }
+  
+  if (!retries) {
+      console.error("[Usuários] Falha ao conectar ao MySQL após várias tentativas. Encerrando.");
+      // process.exit(1); 
+  }
+};
+
+// Inicia a tentativa de conexão
+connectToMySQL();
+// ----- FIM: Conexão MySQL (MODIFICADO COM RETENTATIVAS) -----
 
 
 const app = express();
@@ -210,4 +231,3 @@ const gracefulShutdown = async (signal) => {
 // Ouve os sinais de encerramento
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM')); // Sinal padrão do Docker/ECS/Kubernetes
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));   // Sinal de Ctrl+C no terminal
-

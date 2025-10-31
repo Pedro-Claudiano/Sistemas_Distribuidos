@@ -1,0 +1,7 @@
+[mysqld]
+server-id=1
+log-bin=mysql-binlog
+binlog-do-db=meu_projeto_db
+gtid-mode=ON
+enforce-gtid-consistency=ON
+default-authentication-plugin=mysql_native_password

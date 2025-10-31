@@ -1,61 +1,110 @@
 services:
-  # SERVIÇO DO BANCO DE DADOS MYSQL
-  mysql_db:
-    image: mysql:8.0 # Imagem oficial do MySQL 8
-    container_name: mysql_db
+  mysql-primary:
+    # 👇 MODIFICADO: Em vez de 'image:', agora 'build:'
+    build: ./mysql-config/primary
+    container_name: mysql-primary
     restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD} # Password de root do MySQL
-      MYSQL_DATABASE: ${DB_NAME}               # Cria a base de dados automaticamente
-      MYSQL_USER: ${DB_USER}                   # Cria um utilizador normal
-      MYSQL_PASSWORD: ${DB_PASSWORD}           # Password para o utilizador normal
+    networks:
+      - default
     ports:
-      # Expõe a porta do MySQL para podermos conectar localmente (ex: com db-migrate)
       - "${DB_PORT_LOCAL}:${DB_PORT_INTERNAL}" # Ex: 3307:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      DB_REPLICATOR_PASSWORD: ${DB_REPLICATOR_PASSWORD} 
     volumes:
-      # Mantém os dados do MySQL persistentes mesmo se o contentor for recriado
       - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      # As linhas 'command:' e 'volumes' do .cnf foram REMOVIDAS
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mysql-secondary:
+    # 👇 MODIFICADO: Em vez de 'image:', agora 'build:'
+    build: ./mysql-config/secondary
+    container_name: mysql-secondary
+    restart: unless-stopped
+    networks:
+      - default
+    ports:
+      - "3308:${DB_PORT_INTERNAL}" 
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD} 
+    volumes:
+      - mysql_secondary_data:/var/lib/mysql
+      # As linhas 'command:' e 'volumes' do .cnf foram REMOVIDAS
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    
+  redis_lock:
+    image: "redis:7-alpine"
+    container_name: redis_lock
+    restart: unless-stopped
+    command: redis-server --loglevel warning
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   usuarios-service:
     build: ./backend/servico-usuarios
     container_name: usuarios-service
+    # ... (resto igual)
     restart: unless-stopped
+    networks:
+      - default
     environment:
-      # Variáveis para CONECTAR ao MySQL
       NODE_PORT: 3000
-      DB_HOST: mysql_db # Nome do serviço MySQL definido acima
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME}
-      DB_PORT: ${DB_PORT_INTERNAL} # Porta INTERNA do MySQL no container
-      JWT_SECRET: ${JWT_SECRET}
-    depends_on:
-      - mysql_db # Garante que o BD MySQL inicie antes
-
-  reservas-service:
-    build: ./backend/servico-reservas
-    container_name: reservas-service
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    environment:
-      # Variáveis para CONECTAR ao MySQL
-      NODE_PORT: 3001
-      DB_HOST: mysql_db
+      DB_HOST: mysql-primary 
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
       DB_PORT: ${DB_PORT_INTERNAL}
       JWT_SECRET: ${JWT_SECRET}
     depends_on:
-      - mysql_db # Garante que o BD MySQL inicie antes
+      mysql-primary:
+        condition: service_healthy
+
+  reservas-service:
+    build: ./backend/servico-reservas
+    container_name: reservas-service
+    # ... (resto igual)
+    restart: unless-stopped
+    networks:
+      - default
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_PORT: 3001
+      DB_HOST: mysql-primary 
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_PORT: ${DB_PORT_INTERNAL}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: redis_lock
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      redis_lock:
+        condition: service_healthy
 
   frontend:
     build:
       context: .
       dockerfile: ./frontend/Dockerfile
+    # ... (resto igual)
     container_name: frontend-nginx
     restart: unless-stopped
+    networks:
+      - default
     ports:
       - "80:80"
     depends_on:
@@ -63,5 +112,9 @@ services:
       - reservas-service
 
 volumes:
-  mysql_data: # Define o volume para persistir os dados do MySQL
+  mysql_data:
+  mysql_secondary_data:
 
+networks:
+  default:
+    driver: bridge
