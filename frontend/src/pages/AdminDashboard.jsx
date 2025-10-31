@@ -86,7 +86,7 @@ export default function AdminDashboard() {
         setMessage({ type: "success", text: "Sala atualizada com sucesso!" });
       }
       
-      setIsLoading(False);
+      setIsLoading(false);
       // Volta para a lista após o sucesso
       setTimeout(() => handleCancel(), 1500); 
     }, 1000);
