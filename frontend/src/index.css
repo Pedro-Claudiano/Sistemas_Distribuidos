@@ -441,6 +441,84 @@ table tr:nth-child(even) {
   background: #4320df; /* Roxo mais escuro no hover */
 }
 
+/* ==============================================
+  ESTILOS PARA SELEÇÃO DE MÚLTIPLAS DATAS
+  ==============================================
+*/
+
+/* Botão de "+" dentro do input de data */
+.add-date-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #5F41E4;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10; /* Fica acima do input */
+  transition: background 0.2s;
+}
+
+.add-date-btn:hover {
+  background: #4320df;
+}
+
+.add-date-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.add-date-btn i {
+  position: static !important; /* Sobrescreve o estilo global de 'i' */
+  transform: none !important;
+  font-size: 20px;
+}
+
+/* Lista de datas (tags) */
+.selected-dates-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem;
+  border: 1px dashed #bfb3f2;
+  border-radius: 0.31rem;
+  background: #f9f9f9;
+}
+
+.date-tag {
+  background: #e0dcfc;
+  color: #5F41E4;
+  padding: 0.3rem 0.6rem;
+  border-radius: 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.remove-date-icon {
+  position: static !important; /* Sobrescreve estilo global */
+  transform: none !important;
+  font-size: 16px !important;
+  cursor: pointer;
+  color: #5F41E4 !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+.remove-date-icon:hover {
+  color: #d32f2f !important;
+}
+
 
 /* =G ... (Seu CSS de Media Queries) ... */
 @media (max-width: 480px) {
