@@ -70,12 +70,16 @@ redisClient.on('error', (err) => {
 console.log(`[Reservas] Tentando conectar ao Redis no host: '${process.env.REDIS_HOST}'`);
 
 const app = express();
+// CRIAMOS UM ROUTER SEPARADO PARA A API
+const apiRouter = express.Router();
+
 const port = process.env.NODE_PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
 
 // ----- INÍCIO: Middleware de Autenticação JWT -----
+// MUDANÇA: Este middleware será usado pelo apiRouter
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Formato "Bearer TOKEN"
@@ -102,7 +106,16 @@ function authenticateToken(req, res, next) {
   });
 }
 // ----- FIM: Middleware de Autenticação JWT -----
-
+function authorizeRole(allowedRoles) {
+  return (req, res, next) => {
+    // Verifica se o usuário tem o role necessário
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      console.log(`[Auth] Acesso negado. Usuario role: ${req.user?.role}, Necessario: ${allowedRoles}`);
+      return res.status(403).json({ error: 'Acesso negado: Você não tem permissão de administrador.' });
+    }
+    next();
+  };
+}
 
 // --- ROTA PARA CRIAR UMA NOVA RESERVA (MODIFICADA com Lock - Passo 3) ---
 app.post('/reservas', authenticateToken, async (req, res) => {
@@ -203,7 +216,7 @@ app.post('/reservas', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA LISTAR TODAS AS RESERVAS (Protegida por JWT) ---
-app.get('/reservas', authenticateToken, async (req, res) => {
+apiRouter.get('/reservas', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   console.log(`[Reservas] Buscando todas as reservas.`);
   let connection;
   try {
@@ -219,7 +232,8 @@ app.get('/reservas', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA LISTAR RESERVAS DE UM USUÁRIO ESPECÍFICO (Protegida por JWT) ---
-app.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
+// MUDANÇA: de app.get para apiRouter.get
+apiRouter.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
   const requestedUserId = req.params.userId;
   // Opcional: Adicionar verificação se o usuário do token pode ver estas reservas
   console.log(`[Reservas] Buscando reservas para o usuário ${requestedUserId}`);
@@ -241,7 +255,8 @@ app.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA DELETAR UMA RESERVA (Protegida por JWT) ---
-app.delete('/reservas/:id', authenticateToken, async (req, res) => {
+// MUDANÇA: de app.delete para apiRouter.delete
+apiRouter.delete('/reservas/:id', authenticateToken, async (req, res) => {
   const reservationIdToDelete = req.params.id;
   const userIdFromToken = req.user.userId;
   console.log(`[Reservas] Usuário ${userIdFromToken} requisitou deletar reserva ${reservationIdToDelete}`);
@@ -293,6 +308,9 @@ app.get('/health', async (req, res) => {
     res.status(503).send('Service Unavailable'); // 503 Service Unavailable
   }
 });
+
+// --- NOVO: Registra o router da API com o prefixo /api ---
+app.use('/api', apiRouter);
 
 
 // Inicia o servidor e guarda a referência

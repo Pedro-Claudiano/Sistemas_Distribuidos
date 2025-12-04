@@ -1,12 +1,13 @@
 -- Garante que estamos usando o banco de dados correto
 USE meu_projeto_db;
 
--- Cria a tabela 'Usuarios'
+-- Cria a tabela 'Usuarios' com a nova coluna 'role'
 CREATE TABLE Usuarios (
     id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'client') NOT NULL DEFAULT 'client', -- 👇 NOVA COLUNA
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -1,6 +1,6 @@
 services:
+  # SERVIÇO DO BANCO DE DADOS PRIMÁRIO (MESTRE)
   mysql-primary:
-    # 👇 MODIFICADO: Em vez de 'image:', agora 'build:'
     build: ./mysql-config/primary
     container_name: mysql-primary
     restart: unless-stopped
@@ -9,21 +9,22 @@ services:
     ports:
       - "${DB_PORT_LOCAL}:${DB_PORT_INTERNAL}" # Ex: 3307:3306
     environment:
+      # Apenas variáveis de root e sistema. Usuários da app são criados pelo init.sql.
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
-      DB_REPLICATOR_PASSWORD: ${DB_REPLICATOR_PASSWORD} 
+      DB_REPLICATOR_PASSWORD: ${DB_REPLICATOR_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-      # As linhas 'command:' e 'volumes' do .cnf foram REMOVIDAS
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}"]
+      # Atualizado para usar root, já que DB_USER não está mais nas env vars deste container
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
 
+  # SERVIÇO DO BANCO DE DADOS SECUNDÁRIO (ESCRAVO)
   mysql-secondary:
-    # 👇 MODIFICADO: Em vez de 'image:', agora 'build:'
     build: ./mysql-config/secondary
     container_name: mysql-secondary
     restart: unless-stopped
@@ -35,11 +36,11 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD} 
     volumes:
       - mysql_secondary_data:/var/lib/mysql
-      # As linhas 'command:' e 'volumes' do .cnf foram REMOVIDAS
     depends_on:
       mysql-primary:
         condition: service_healthy
-    
+
+  # SERVIÇO DE LOCK DISTRIBUÍDO (REDIS)
   redis_lock:
     image: "redis:7-alpine"
     container_name: redis_lock
@@ -53,10 +54,10 @@ services:
       timeout: 5s
       retries: 5
 
+  # SERVIÇO DE BACKEND - USUÁRIOS
   usuarios-service:
     build: ./backend/servico-usuarios
     container_name: usuarios-service
-    # ... (resto igual)
     restart: unless-stopped
     networks:
       - default
@@ -72,10 +73,10 @@ services:
       mysql-primary:
         condition: service_healthy
 
+  # SERVIÇO DE BACKEND - RESERVAS
   reservas-service:
     build: ./backend/servico-reservas
     container_name: reservas-service
-    # ... (resto igual)
     restart: unless-stopped
     networks:
       - default
@@ -96,25 +97,31 @@ services:
       redis_lock:
         condition: service_healthy
 
+  # SERVIÇO DE FRONTEND (NGINX + HTTPS)
   frontend:
     build:
-      context: .
-      dockerfile: ./frontend/Dockerfile
-    # ... (resto igual)
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: frontend-nginx
     restart: unless-stopped
     networks:
       - default
     ports:
-      - "80:80"
+      - "80:80"   # Porta HTTP (para redirecionamento)
+      - "443:443" # Porta HTTPS segura
     depends_on:
       - usuarios-service
       - reservas-service
+    volumes:
+      # Mapeia os certificados do seu Windows para dentro do Nginx
+      - ./nginx-certs:/etc/nginx/certs
 
+# DEFINIÇÃO DOS VOLUMES
 volumes:
   mysql_data:
   mysql_secondary_data:
 
+# DEFINIÇÃO DA REDE
 networks:
   default:
     driver: bridge

@@ -1,57 +1,70 @@
-# Define uma variável para o seu Nginx (que roda na porta 80)
-@host = http://localhost
+@host = https://localhost
 
-# ===================================================
-#           SERVIÇO DE USUÁRIOS
-# ===================================================
-
-### 1A: Registrar um novo usuário
-# Primeiro, crie um usuário para poder fazer login.
-# @name registerUser
+### ---------------------------------------------------
+### 1. Criar um ADMIN
+### ---------------------------------------------------
+# @name registerAdmin
 POST {{host}}/api/users
 Content-Type: application/json
 
 {
-  "name": "Usuario de Teste",
-  "email": "teste@exemplo.com",
-  "password": "senha123"
+  "name": "Super Admin",
+  "email": "admin@seguro.com",
+  "password": "123",
+  "role": "admin"
 }
 
-### 1B: Fazer Login (e Salvar o Token)
-# Agora, faça login com o usuário que você acabou de criar.
-# @name loginUser
+### ---------------------------------------------------
+### 2. Fazer Login como ADMIN
+### ---------------------------------------------------
+# @name loginAdmin
 POST {{host}}/api/users/login
 Content-Type: application/json
 
 {
-  "email": "teste@exemplo.com",
-  "password": "senha123"
+  "email": "admin@seguro.com",
+  "password": "123"
 }
 
-### <-- 👇 ADICIONE ESTE SEPARADOR AQUI
-# Esta linha de script DEVE vir DEPOIS de um separador ###
-@authToken = {{loginUser.response.body.token}}
+### (A variável do token é guardada automaticamente no 'loginAdmin')
 
 
-### 1C: Listar TODOS os usuários (O SEU TESTE)
-# Endpoint: GET /api/users
-# Agora este request vai funcionar, pois {{authToken}} foi preenchido.
-GET {{host}}/api/users
-Authorization: Bearer {{authToken}}
-
-
-# ===================================================
-#           SERVIÇO DE RESERVAS (TESTE DO LOCK)
-# ===================================================
-
-### 2A: Criar uma nova reserva
-# Este é o teste para a Exclusão Mútua (Lock).
-POST {{host}}/api/reservas
+### ---------------------------------------------------
+### 3. Criar um CLIENTE COMUM
+### ---------------------------------------------------
+# @name registerClient
+POST {{host}}/api/users
 Content-Type: application/json
-Authorization: Bearer {{authToken}}
 
 {
-  "room_id": "sala_101",
-  "start_time": "2025-11-20T14:00:00",
-  "end_time": "2025-11-20T15:00:00"
+  "name": "Cliente Comum",
+  "email": "cliente@seguro.com",
+  "password": "123"
 }
+
+### ---------------------------------------------------
+### 4. Fazer Login como CLIENTE
+### ---------------------------------------------------
+# @name loginClient
+POST {{host}}/api/users/login
+Content-Type: application/json
+
+{
+  "email": "cliente@seguro.com",
+  "password": "123"
+}
+
+
+### ---------------------------------------------------
+### TESTES DE ACESSO (AUTORIZAÇÃO)
+### ---------------------------------------------------
+
+### 5. Tentar listar usuários como ADMIN (Deve funcionar: 200 OK)
+# Usamos a resposta do loginAdmin diretamente
+GET {{host}}/api/users
+Authorization: Bearer {{loginAdmin.response.body.token}}
+
+### 6. Tentar listar usuários como CLIENTE (Deve falhar: 403 Forbidden)
+# Usamos a resposta do loginClient diretamente
+GET {{host}}/api/users
+Authorization: Bearer {{loginClient.response.body.token}}
