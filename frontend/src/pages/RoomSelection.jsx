@@ -9,6 +9,11 @@ const mockRooms = [
   { id: '305', name: 'Auditório Principal', location: "Prédio Principal" },
 ];
 
+// Mock de Reservas do Usuário
+const mockMyReservas = [
+  { id: 1, roomId: '101', roomName: "Sala 1", date: "2023-10-27", time: "08:00 - 08:50" },
+];
+
 const allTimeSlots = [
   { label: '08:00 - 08:50', start: '08:00:00', end: '08:50:00' },
   { label: '08:50 - 09:40', start: '08:50:00', end: '09:40:00' },
@@ -21,22 +26,39 @@ const allTimeSlots = [
   { label: '16:40 - 17:30', start: '16:40:00', end: '17:30:00' },
 ];
 
-// Pega a data de hoje no formato YYYY-MM-DD para o input[type="date"]
+// Pega data atual YYYY-MM-DD sem conversão de fuso
 const getTodayString = () => {
-  return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
-// --- FIM MOCK DE DADOS ---
 
+// Formata YYYY-MM-DD para DD/MM (sem fuso)
+const formatDateDisplay = (dateString) => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+};
 
 export default function RoomSelection() {
   const [rooms, setRooms] = useState([]);
   const [userName, setUserName] = useState("Usuário");
   
   const [selectedRoom, setSelectedRoom] = useState('');
-  // Salva a data como string YYYY-MM-DD
-  const [selectedDate, setSelectedDate] = useState(getTodayString()); 
+  
+  // --- MÚLTIPLAS DATAS ---
+  const [selectedDates, setSelectedDates] = useState([]); 
+  const [tempDate, setTempDate] = useState(getTodayString()); 
+  
   const [selectedTime, setSelectedTime] = useState('');
   
+  const [isEditing, setIsEditing] = useState(false); 
+  const [editingReservaId, setEditingReservaId] = useState(null);
+
+  const [myReservas, setMyReservas] = useState(mockMyReservas);
+
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isSlotsLoading, setIsSlotsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,24 +70,40 @@ export default function RoomSelection() {
     setUserName("Yuri");
   }, []);
 
+  // Carrega horários
   useEffect(() => {
-    if (selectedRoom && selectedDate) {
+    if (selectedRoom && (selectedDates.length > 0 || tempDate)) {
       setIsSlotsLoading(true);
       setAvailableSlots([]);
-      setSelectedTime('');
-      setMessage(null);
       
-      console.log(`Buscando horários para Sala ${selectedRoom} no dia ${selectedDate}`);
+      if (!isEditing) setSelectedTime(''); 
       
       setTimeout(() => {
-        const mockAvailable = allTimeSlots.filter(() => Math.random() > 0.3);
+        const mockAvailable = allTimeSlots.filter(() => Math.random() > 0.1);
         setAvailableSlots(mockAvailable);
         setIsSlotsLoading(false);
-      }, 1000);
+      }, 800);
     }
-  }, [selectedRoom, selectedDate]); 
+  }, [selectedRoom, selectedDates, tempDate, isEditing]); 
 
 
+  // --- Adicionar Data ---
+  const handleAddDate = () => {
+    if (!tempDate) return;
+    if (selectedDates.includes(tempDate)) {
+        setMessage({ type: 'error', text: 'Esta data já foi adicionada.' });
+        return;
+    }
+    setSelectedDates([...selectedDates, tempDate].sort());
+    setMessage(null);
+  };
+
+  // --- Remover Data ---
+  const handleRemoveDate = (dateToRemove) => {
+    setSelectedDates(selectedDates.filter(d => d !== dateToRemove));
+  };
+
+  // --- SUBMIT (CRIAR OU ATUALIZAR) ---
   const handleConfirmClick = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -81,32 +119,85 @@ export default function RoomSelection() {
 
     try {
       const slotDetails = allTimeSlots.find(slot => slot.label === selectedTime);
-      if (!slotDetails) {
-        throw new Error("Horário selecionado inválido.");
-      }
-
-      // Combina a string da data (YYYY-MM-DD) com a string da hora (HH:MM:SS)
-      const startTime = new Date(`${selectedDate}T${slotDetails.start}`).toISOString();
-      const endTime = new Date(`${selectedDate}T${slotDetails.end}`).toISOString();
-      
-      const reservationData = { room_id: selectedRoom, start_time: startTime, end_time: endTime };
-      console.log("Enviando reserva:", reservationData);
-
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      // ... (lógica de fetch real) ...
+      if (!slotDetails) throw new Error("Horário selecionado inválido.");
 
       const roomDetails = rooms.find(room => room.id === selectedRoom);
-      setMessage({ type: 'success', text: `Reserva para "${roomDetails.name}" às ${selectedTime} criada!` });
       
+      await new Promise(resolve => setTimeout(resolve, 1500)); 
+
+      if (isEditing) {
+        // ATUALIZAR (Edição é de uma data só por vez)
+        setMyReservas(prev => prev.map(r => 
+            r.id === editingReservaId 
+            ? { ...r, roomId: selectedRoom, roomName: roomDetails.name, date: tempDate, time: selectedTime }
+            : r
+        ));
+        setMessage({ type: 'success', text: `Reserva atualizada com sucesso!` });
+        setIsEditing(false);
+        setEditingReservaId(null);
+      } else {
+        // CRIAR (Pode ser múltiplas datas)
+        if (selectedDates.length === 0) throw new Error("Selecione pelo menos uma data.");
+
+        const newReservas = selectedDates.map(date => ({
+            id: Date.now() + Math.random(),
+            roomId: selectedRoom,
+            roomName: roomDetails.name,
+            date: date,
+            time: selectedTime
+        }));
+
+        setMyReservas(prev => [...prev, ...newReservas]);
+        setMessage({ type: 'success', text: `${newReservas.length} reserva(s) criada(s) com sucesso!` });
+      }
+      
+      // Limpa o formulário
       setSelectedRoom('');
-      setSelectedDate(getTodayString()); 
+      setTempDate(getTodayString());
+      setSelectedDates([]); 
       setSelectedTime('');
       setAvailableSlots([]);
 
     } catch (error) {
-      setMessage({ type: 'error', text: error.message || "Falha ao criar reserva." });
+      setMessage({ type: 'error', text: error.message || "Falha ao processar." });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // --- EDITAR ---
+  const handleEditReserva = (reserva) => {
+    setIsEditing(true);
+    setEditingReservaId(reserva.id);
+    
+    setSelectedRoom(reserva.roomId);
+    setTempDate(reserva.date); 
+    setSelectedDates([]); // Limpa múltiplas pois edição é singular
+    setSelectedTime(reserva.time);
+    
+    setMessage({ type: 'success', text: `Editando reserva do dia ${formatDateDisplay(reserva.date)}.` });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // --- CANCELAR EDIÇÃO ---
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditingReservaId(null);
+    setSelectedRoom('');
+    setTempDate(getTodayString());
+    setSelectedDates([]);
+    setSelectedTime('');
+    setAvailableSlots([]);
+    setMessage(null);
+  };
+
+  // --- DELETAR ---
+  const handleDeleteReserva = (reservaId) => {
+    if (window.confirm("Tem certeza que deseja cancelar esta reserva?")) {
+        setMyReservas(prev => prev.filter(r => r.id !== reservaId));
+        if (isEditing && editingReservaId === reservaId) {
+            handleCancelEdit();
+        }
     }
   };
 
@@ -132,11 +223,18 @@ export default function RoomSelection() {
         </div>
       </div>
 
-      <div className="login-container admin-dashboard">
-        <h2 className="form-title">Reservar Sala</h2>
-        <p className="separator"><span>Escolha a data, sala e horário</span></p>
+      {/* --- NOVA RESERVA / EDIÇÃO --- */}
+      <div className="login-container admin-dashboard" style={{ marginBottom: '2rem' }}>
+        <h2 className="form-title">
+            {isEditing ? 'Editar Reserva' : 'Reservar Sala'}
+        </h2>
+        <p className="separator"><span>
+            {isEditing ? 'Altere os dados da reserva' : 'Selecione sala, datas e horário'}
+        </span></p>
 
         <form className="login-form" onSubmit={handleConfirmClick}>
+          
+          {/* SALA */}
           <div className="input-wrapper">
             <select
               className="input-field select-field"
@@ -155,29 +253,67 @@ export default function RoomSelection() {
             <i className="material-symbols-rounded">meeting_room</i>
           </div>
 
-          <div className="input-wrapper">
-            <input
-              type="date"
-              className="input-field" // O CSS vai esconder o ícone nativo
-              value={selectedDate}
-              min={getTodayString()} // Não deixa reservar no passado
-              onChange={(e) => setSelectedDate(e.target.value)}
-              disabled={isLoading}
-              required
-            />
-            <i className="material-symbols-rounded">calendar_month</i>
+          {/* DATA (Com Múltipla Seleção) */}
+          <div className="date-selection-container">
+              <div className="input-wrapper" style={{ marginBottom: isEditing ? '1.5rem' : '0.5rem' }}>
+                <input
+                  type="date"
+                  className="input-field"
+                  value={tempDate}
+                  min={getTodayString()} 
+                  onChange={(e) => setTempDate(e.target.value)}
+                  disabled={isLoading}
+                  // CORREÇÃO: Força abrir calendário ao clicar
+                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                />
+                <i className="material-symbols-rounded">calendar_month</i>
+                
+                {/* Botão + (Só aparece se NÃO estiver editando) */}
+                {!isEditing && (
+                    <button 
+                        type="button" 
+                        className="add-date-btn"
+                        onClick={handleAddDate}
+                        disabled={!tempDate || isLoading}
+                    >
+                        <i className="material-symbols-rounded">add</i>
+                    </button>
+                )}
+              </div>
+
+              {/* Lista de Datas Selecionadas */}
+              {!isEditing && selectedDates.length > 0 && (
+                  <div className="selected-dates-list">
+                      {selectedDates.map(date => (
+                          <span key={date} className="date-tag">
+                              {/* Usa formatação segura */}
+                              {formatDateDisplay(date)}
+                              <i 
+                                className="material-symbols-rounded remove-date-icon"
+                                onClick={() => handleRemoveDate(date)}
+                              >close</i>
+                          </span>
+                      ))}
+                  </div>
+              )}
+               {!isEditing && selectedDates.length === 0 && (
+                  <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem', textAlign: 'center' }}>
+                    Selecione uma data e clique no <b>+</b> para adicionar.
+                  </p>
+              )}
           </div>
 
+          {/* HORÁRIO */}
           <div className="input-wrapper">
             <select
               className="input-field select-field"
               value={selectedTime}
               onChange={(e) => setSelectedTime(e.target.value)}
-              disabled={!selectedRoom || !selectedDate || isSlotsLoading || isLoading}
+              disabled={!selectedRoom || (!isEditing && selectedDates.length === 0) || isSlotsLoading || isLoading}
               required
             >
               <option value="" disabled>
-                {isSlotsLoading ? "Buscando horários..." : "Selecione o horário..."}
+                {isSlotsLoading ? "Verificando disponibilidade..." : "Selecione o horário..."}
               </option>
               
               {!isSlotsLoading && availableSlots.length > 0 && (
@@ -188,7 +324,7 @@ export default function RoomSelection() {
                 ))
               )}
 
-              {!isSlotsLoading && availableSlots.length === 0 && selectedRoom && selectedDate && (
+              {!isSlotsLoading && availableSlots.length === 0 && selectedRoom && (
                 <option value="" disabled>Nenhum horário disponível</option>
               )}
             </select>
@@ -201,14 +337,72 @@ export default function RoomSelection() {
             </div>
           )}
 
-          <button
-            type="submit"
-            className="login-button"
-            disabled={!selectedTime || isLoading || isSlotsLoading}
-          >
-            {isLoading ? "Reservando..." : 'Confirmar Reserva'}
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+              {isEditing && (
+                  <button 
+                    type="button" 
+                    className="login-button cancel" 
+                    onClick={handleCancelEdit}
+                    disabled={isLoading}
+                  >
+                      Cancelar
+                  </button>
+              )}
+              <button
+                type="submit"
+                className="login-button"
+                disabled={!selectedTime || (!isEditing && selectedDates.length === 0) || isLoading}
+              >
+                {isLoading ? "Salvando..." : (isEditing ? 'Salvar Alteração' : 'Confirmar Reservas')}
+              </button>
+          </div>
         </form>
+      </div>
+
+      {/* --- LISTA DE RESERVAS --- */}
+      <div className="login-container admin-dashboard">
+        <h2 className="form-title" style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Minhas Reservas</h2>
+        
+        <div className="room-list">
+            {myReservas.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#666' }}>Você ainda não tem reservas.</p>
+            ) : (
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Sala</th>
+                            <th>Data</th>
+                            <th>Horário</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {myReservas.map(reserva => (
+                            <tr key={reserva.id} style={editingReservaId === reserva.id ? { backgroundColor: '#f0f8ff' } : {}}>
+                                <td>{reserva.roomName}</td>
+                                <td>{formatDateDisplay(reserva.date)}</td>
+                                <td>{reserva.time}</td>
+                                <td className="room-actions">
+                                    <button 
+                                        onClick={() => handleEditReserva(reserva)} 
+                                        className="action-btn edit"
+                                        disabled={isEditing}
+                                    >
+                                        Editar
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDeleteReserva(reserva.id)} 
+                                        className="action-btn delete"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+        </div>
       </div>
     </>
   );
