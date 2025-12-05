@@ -8,15 +8,18 @@ import Register from './pages/Register.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import RoomSelection from './pages/RoomSelection.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
-import Profile from './pages/Profile.jsx'; // 1. IMPORTAR A NOVA PÁGINA
+import Profile from './pages/Profile.jsx';
 import './index.css';
 
-// Criação do roteador com o mapa do site
+// 👇 1. IMPORTANTE: Importe o componente da Demo
+import EntregaDemo from './components/EntregaDemo';
+
+// Criação do roteador com o mapa do site (MANTIDO IGUAL)
 const router = createBrowserRouter([
   {
     path: "/",
     element: <App />, // O App é o layout principal
-    children: [ // As páginas são "filhas" do layout
+    children: [ 
       {
         index: true,
         element: <Login />,
@@ -49,8 +52,21 @@ const router = createBrowserRouter([
   },
 ]);
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>,
-);
+// 👇 2. MUDANÇA AQUI: Lógica condicional de renderização
+const root = ReactDOM.createRoot(document.getElementById('root'));
+
+if (window.location.pathname === '/demo') {
+  // Se a URL for /demo, mostra APENAS o painel e ignora o roteador
+  root.render(
+    <React.StrictMode>
+      <EntregaDemo />
+    </React.StrictMode>
+  );
+} else {
+  // Caso contrário, carrega o seu site normal com o roteador
+  root.render(
+    <React.StrictMode>
+      <RouterProvider router={router} />
+    </React.StrictMode>
+  );
+}
