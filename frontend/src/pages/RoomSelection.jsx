@@ -1,18 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// --- MOCK DE DADOS ---
-const mockRooms = [
-  { id: '101', name: 'Sala 1', location: "Prédio ADM" },
-  { id: '102', name: 'Sala 2', location: "Prédio ADM" },
-  { id: '201', name: 'Laboratório 1', location: "Prédio de Eletrônica" },
-  { id: '305', name: 'Auditório Principal', location: "Prédio Principal" },
-];
-
-// Mock de Reservas do Usuário
-const mockMyReservas = [
-  { id: 1, roomId: '101', roomName: "Sala 1", date: "2023-10-27", time: "08:00 - 08:50" },
-];
+const API_BASE_URL = '/api';
 
 const allTimeSlots = [
   { label: '08:00 - 08:50', start: '08:00:00', end: '08:50:00' },
@@ -57,7 +46,7 @@ export default function RoomSelection() {
   const [isEditing, setIsEditing] = useState(false); 
   const [editingReservaId, setEditingReservaId] = useState(null);
 
-  const [myReservas, setMyReservas] = useState(mockMyReservas);
+  const [myReservas, setMyReservas] = useState([]);
 
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isSlotsLoading, setIsSlotsLoading] = useState(false);
@@ -65,10 +54,71 @@ export default function RoomSelection() {
   const [message, setMessage] = useState(null);
   const navigate = useNavigate();
 
+  // Carrega salas e reservas ao montar
   useEffect(() => {
-    setRooms(mockRooms);
-    setUserName("Yuri");
+    fetchRooms();
+    fetchMyReservas();
+    // Buscar nome do usuário do token (opcional)
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUserName(payload.name || "Usuário");
+      } catch (e) {
+        console.error('Erro ao decodificar token:', e);
+      }
+    }
   }, []);
+
+  const fetchRooms = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/salas`);
+      if (!response.ok) throw new Error('Erro ao buscar salas');
+      const data = await response.json();
+      setRooms(data);
+    } catch (error) {
+      console.error('Erro ao buscar salas:', error);
+      setMessage({ type: 'error', text: 'Erro ao carregar salas.' });
+    }
+  };
+
+  const fetchMyReservas = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const userId = payload.userId;
+
+      const response = await fetch(`${API_BASE_URL}/reservas/usuario/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Erro ao buscar reservas');
+      const data = await response.json();
+      
+      // Formata as reservas para o formato esperado pelo componente
+      const formattedReservas = data.map(r => ({
+        id: r.id,
+        roomId: r.room_id,
+        roomName: rooms.find(room => room.id === r.room_id)?.name || r.room_id,
+        date: r.start_time.split('T')[0],
+        time: formatTimeRange(r.start_time, r.end_time)
+      }));
+
+      setMyReservas(formattedReservas);
+    } catch (error) {
+      console.error('Erro ao buscar reservas:', error);
+    }
+  };
+
+  const formatTimeRange = (startTime, endTime) => {
+    const start = new Date(startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const end = new Date(endTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return `${start} - ${end}`;
+  };
 
   // Carrega horários
   useEffect(() => {
@@ -123,15 +173,37 @@ export default function RoomSelection() {
 
       const roomDetails = rooms.find(room => room.id === selectedRoom);
       
-      await new Promise(resolve => setTimeout(resolve, 1500)); 
-
       if (isEditing) {
-        // ATUALIZAR (Edição é de uma data só por vez)
-        setMyReservas(prev => prev.map(r => 
-            r.id === editingReservaId 
-            ? { ...r, roomId: selectedRoom, roomName: roomDetails.name, date: tempDate, time: selectedTime }
-            : r
-        ));
+        // ATUALIZAR não é suportado pela API atual, então vamos deletar e criar novamente
+        await fetch(`${API_BASE_URL}/reservas/${editingReservaId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        // Cria nova reserva
+        const startDateTime = `${tempDate}T${slotDetails.start}`;
+        const endDateTime = `${tempDate}T${slotDetails.end}`;
+
+        const response = await fetch(`${API_BASE_URL}/reservas`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            room_id: selectedRoom,
+            start_time: startDateTime,
+            end_time: endDateTime
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Erro ao atualizar reserva');
+        }
+
         setMessage({ type: 'success', text: `Reserva atualizada com sucesso!` });
         setIsEditing(false);
         setEditingReservaId(null);
@@ -139,17 +211,36 @@ export default function RoomSelection() {
         // CRIAR (Pode ser múltiplas datas)
         if (selectedDates.length === 0) throw new Error("Selecione pelo menos uma data.");
 
-        const newReservas = selectedDates.map(date => ({
-            id: Date.now() + Math.random(),
-            roomId: selectedRoom,
-            roomName: roomDetails.name,
-            date: date,
-            time: selectedTime
-        }));
+        const promises = selectedDates.map(date => {
+          const startDateTime = `${date}T${slotDetails.start}`;
+          const endDateTime = `${date}T${slotDetails.end}`;
 
-        setMyReservas(prev => [...prev, ...newReservas]);
-        setMessage({ type: 'success', text: `${newReservas.length} reserva(s) criada(s) com sucesso!` });
+          return fetch(`${API_BASE_URL}/reservas`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              room_id: selectedRoom,
+              start_time: startDateTime,
+              end_time: endDateTime
+            })
+          });
+        });
+
+        const responses = await Promise.all(promises);
+        const failedCount = responses.filter(r => !r.ok).length;
+
+        if (failedCount > 0) {
+          throw new Error(`${failedCount} reserva(s) falharam. Verifique conflitos.`);
+        }
+
+        setMessage({ type: 'success', text: `${selectedDates.length} reserva(s) criada(s) com sucesso!` });
       }
+      
+      // Recarrega as reservas
+      await fetchMyReservas();
       
       // Limpa o formulário
       setSelectedRoom('');
@@ -192,12 +283,38 @@ export default function RoomSelection() {
   };
 
   // --- DELETAR ---
-  const handleDeleteReserva = (reservaId) => {
-    if (window.confirm("Tem certeza que deseja cancelar esta reserva?")) {
-        setMyReservas(prev => prev.filter(r => r.id !== reservaId));
-        if (isEditing && editingReservaId === reservaId) {
-            handleCancelEdit();
+  const handleDeleteReserva = async (reservaId) => {
+    if (!window.confirm("Tem certeza que deseja cancelar esta reserva?")) return;
+
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setMessage({ type: 'error', text: 'Erro de autenticação. Faça login.' });
+      setTimeout(() => navigate('/login'), 2000);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/reservas/${reservaId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao deletar reserva');
+      }
+
+      setMyReservas(prev => prev.filter(r => r.id !== reservaId));
+      if (isEditing && editingReservaId === reservaId) {
+        handleCancelEdit();
+      }
+      setMessage({ type: 'success', text: 'Reserva cancelada com sucesso!' });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Erro ao deletar reserva:', error);
+      setMessage({ type: 'error', text: error.message || 'Erro ao cancelar reserva.' });
     }
   };
 

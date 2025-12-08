@@ -227,6 +227,94 @@ apiRouter.get('/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Atualizar Usuário
+apiRouter.put('/users/:id', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+  const { email, password } = req.body;
+
+  // Verifica se o usuário está tentando atualizar sua própria conta
+  if (req.user.userId !== userId && req.user.role !== 'admin') {
+    logger.warn(`Usuário ${req.user.userId} tentou atualizar conta de outro usuário ${userId}`);
+    return res.status(403).json({ error: 'Você só pode atualizar sua própria conta.' });
+  }
+
+  if (!email && !password) {
+    return res.status(400).json({ error: 'Nenhum campo para atualizar.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    const updates = [];
+    const values = [];
+
+    if (email) {
+      updates.push('email = ?');
+      values.push(email);
+    }
+
+    if (password) {
+      const passwordHash = await bcrypt.hash(password, saltRounds);
+      updates.push('password_hash = ?');
+      values.push(passwordHash);
+    }
+
+    values.push(userId);
+
+    const [result] = await connection.query(
+      `UPDATE Usuarios SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    if (result.affectedRows > 0) {
+      logger.info(`Usuário ${userId} atualizado com sucesso.`);
+      res.status(200).json({ message: 'Perfil atualizado com sucesso.' });
+    } else {
+      res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      logger.warn(`Email duplicado ao atualizar usuário ${userId}`);
+      res.status(409).json({ error: 'Email já está em uso.' });
+    } else {
+      logger.error(`Erro ao atualizar usuário: ${err.message}`);
+      res.status(500).json({ error: 'Erro interno.' });
+    }
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Deletar Usuário
+apiRouter.delete('/users/:id', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+
+  // Verifica se o usuário está tentando deletar sua própria conta
+  if (req.user.userId !== userId && req.user.role !== 'admin') {
+    logger.warn(`Usuário ${req.user.userId} tentou deletar conta de outro usuário ${userId}`);
+    return res.status(403).json({ error: 'Você só pode deletar sua própria conta.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [result] = await connection.query('DELETE FROM Usuarios WHERE id = ?', [userId]);
+
+    if (result.affectedRows > 0) {
+      logger.info(`Usuário ${userId} deletado com sucesso.`);
+      res.status(200).json({ message: 'Conta deletada com sucesso.' });
+    } else {
+      res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+  } catch (err) {
+    logger.error(`Erro ao deletar usuário: ${err.message}`);
+    res.status(500).json({ error: 'Erro interno.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
 // Health Check (Monitoramento)
 app.get('/health', async (req, res) => {
   const healthData = {

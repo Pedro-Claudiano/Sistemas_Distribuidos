@@ -71,6 +71,7 @@ console.log(`[Reservas] Tentando conectar ao Redis no host: '${process.env.REDIS
 
 const app = express();
 const port = process.env.NODE_PORT || 3001;
+const apiRouter = express.Router();
 
 app.use(cors());
 app.use(express.json());
@@ -105,7 +106,7 @@ function authenticateToken(req, res, next) {
 
 
 // --- ROTA PARA CRIAR UMA NOVA RESERVA (MODIFICADA com Lock - Passo 3) ---
-app.post('/reservas', authenticateToken, async (req, res) => {
+apiRouter.post('/reservas', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const { room_id, start_time, end_time } = req.body;
 
@@ -205,7 +206,7 @@ app.post('/reservas', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA LISTAR TODAS AS RESERVAS (Protegida por JWT) ---
-app.get('/reservas', authenticateToken, async (req, res) => {
+apiRouter.get('/reservas', authenticateToken, async (req, res) => {
   console.log(`[Reservas] Buscando todas as reservas.`);
   let connection;
   try {
@@ -221,7 +222,7 @@ app.get('/reservas', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA LISTAR RESERVAS DE UM USUÁRIO ESPECÍFICO (Protegida por JWT) ---
-app.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
+apiRouter.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
   const requestedUserId = req.params.userId;
   // Opcional: Adicionar verificação se o usuário do token pode ver estas reservas
   console.log(`[Reservas] Buscando reservas para o usuário ${requestedUserId}`);
@@ -243,7 +244,7 @@ app.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA DELETAR UMA RESERVA (Protegida por JWT) ---
-app.delete('/reservas/:id', authenticateToken, async (req, res) => {
+apiRouter.delete('/reservas/:id', authenticateToken, async (req, res) => {
   const reservationIdToDelete = req.params.id;
   const userIdFromToken = req.user.userId;
   console.log(`[Reservas] Usuário ${userIdFromToken} requisitou deletar reserva ${reservationIdToDelete}`);
@@ -274,6 +275,128 @@ app.delete('/reservas/:id', authenticateToken, async (req, res) => {
     if (connection) connection.release();
   }
 });
+
+// --- ROTAS DE SALAS ---
+
+// LISTAR TODAS AS SALAS (Público ou protegido, dependendo da necessidade)
+apiRouter.get('/salas', async (req, res) => {
+  console.log(`[Salas] Buscando todas as salas.`);
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.query('SELECT * FROM Salas ORDER BY name');
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error("Erro ao buscar salas:", err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// CRIAR UMA NOVA SALA (Protegida - apenas admin)
+apiRouter.post('/salas', authenticateToken, async (req, res) => {
+  const { name, location } = req.body;
+  
+  // Verifica se o usuário é admin (opcional, adicione verificação de role)
+  // if (req.user.role !== 'admin') {
+  //   return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+  // }
+
+  console.log(`[Salas] Criando nova sala: ${name}`);
+
+  if (!name || !location) {
+    return res.status(400).json({ error: 'name e location são obrigatórios.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const newSalaId = uuidv4();
+    await connection.query(
+      'INSERT INTO Salas (id, name, location) VALUES (?, ?, ?)',
+      [newSalaId, name, location]
+    );
+
+    console.log(`[Salas] Sala ${newSalaId} criada com sucesso.`);
+    res.status(201).json({
+      id: newSalaId,
+      name,
+      location
+    });
+  } catch (err) {
+    console.error("Erro ao criar sala:", err);
+    res.status(500).json({ error: 'Não foi possível criar a sala.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// ATUALIZAR UMA SALA (Protegida - apenas admin)
+apiRouter.put('/salas/:id', authenticateToken, async (req, res) => {
+  const salaId = req.params.id;
+  const { name, location } = req.body;
+
+  console.log(`[Salas] Atualizando sala ${salaId}`);
+
+  if (!name || !location) {
+    return res.status(400).json({ error: 'name e location são obrigatórios.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [result] = await connection.query(
+      'UPDATE Salas SET name = ?, location = ? WHERE id = ?',
+      [name, location, salaId]
+    );
+
+    if (result.affectedRows > 0) {
+      console.log(`[Salas] Sala ${salaId} atualizada com sucesso.`);
+      res.status(200).json({ message: "Sala atualizada com sucesso." });
+    } else {
+      console.log(`[Salas] Sala ${salaId} não encontrada.`);
+      res.status(404).json({ error: "Sala não encontrada." });
+    }
+  } catch (err) {
+    console.error(`Erro ao atualizar sala ${salaId}:`, err);
+    res.status(500).json({ error: 'Não foi possível atualizar a sala.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// DELETAR UMA SALA (Protegida - apenas admin)
+apiRouter.delete('/salas/:id', authenticateToken, async (req, res) => {
+  const salaId = req.params.id;
+
+  console.log(`[Salas] Deletando sala ${salaId}`);
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [result] = await connection.query(
+      'DELETE FROM Salas WHERE id = ?',
+      [salaId]
+    );
+
+    if (result.affectedRows > 0) {
+      console.log(`[Salas] Sala ${salaId} deletada com sucesso.`);
+      res.status(200).json({ message: "Sala deletada com sucesso." });
+    } else {
+      console.log(`[Salas] Sala ${salaId} não encontrada.`);
+      res.status(404).json({ error: "Sala não encontrada." });
+    }
+  } catch (err) {
+    console.error(`Erro ao deletar sala ${salaId}:`, err);
+    res.status(500).json({ error: 'Não foi possível deletar a sala.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Registra o router com o prefixo /api
+app.use('/api', apiRouter);
 
 // --- Endpoint de Health Check ---
 app.get('/health', async (req, res) => {

@@ -29,7 +29,26 @@ export default function Login() {
 
       if (!response.ok) throw new Error(data.error || "Erro ao tentar fazer login");
 
-      navigate("/dashboard");
+      // Debug: verificar o que está vindo da API
+      console.log('=== LOGIN DEBUG ===');
+      console.log('Login response:', data);
+      console.log('User role:', data.role);
+      console.log('Role type:', typeof data.role);
+      console.log('Is admin?', data.role === 'admin');
+
+      // Salva o token no localStorage
+      localStorage.setItem('authToken', data.token);
+      
+      // Redireciona baseado no role do usuário
+      if (data.role === 'admin') {
+        console.log('✅ Redirecionando para /admin');
+        alert('Admin detectado! Redirecionando para /admin');
+        navigate("/admin");
+      } else {
+        console.log('✅ Redirecionando para /dashboard');
+        alert('Cliente detectado! Redirecionando para /dashboard');
+        navigate("/dashboard");
+      }
     } catch (err) {
       setMessage({ type: "error", text: err.message });
     } finally {
