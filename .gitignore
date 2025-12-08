@@ -17,6 +17,19 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.env.aws
+.env.*.local
+
+# Certificados SSL (não commitar certificados reais)
+*.pem
+*.key
+*.crt
+!nginx-certs/*.crt
+!nginx-certs/*.key
+
+# Arquivos AWS
+.aws/
+aws-credentials.json
 
 # Pasta de build do frontend (Vite/React)
 frontend/dist
