@@ -29,7 +29,15 @@ export default function Login() {
 
       if (!response.ok) throw new Error(data.error || "Erro ao tentar fazer login");
 
-      navigate("/dashboard");
+      // Salva o token no localStorage
+      localStorage.setItem('authToken', data.token);
+      
+      // Redireciona baseado no role do usuário
+      if (data.role === 'admin') {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setMessage({ type: "error", text: err.message });
     } finally {

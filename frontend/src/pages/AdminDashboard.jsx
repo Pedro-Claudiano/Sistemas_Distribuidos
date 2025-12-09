@@ -1,15 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import InputField from "../components/InputField";
 
-const mockSalas = [
-  { id: 1, name: "101", location: "Prédio ADM" },
-  { id: 2, name: "205", location: "Prédio de Eletrônica" },
-  { id: 3, name: "Auditório", location: "Prédio Principal" },
-];
+const API_BASE_URL = '/api';
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [view, setView] = useState('list'); // 'list', 'add', 'edit'
-  const [salas, setSalas] = useState(mockSalas);
+  const [salas, setSalas] = useState([]);
   
   // Estado para o formulário
   const [currentSala, setCurrentSala] = useState(null);
@@ -18,7 +16,52 @@ export default function AdminDashboard() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState(null);
+  const [isAuthorized, setIsAuthorized] = useState(null); // null = verificando, true = autorizado, false = não autorizado
 
+  // Verifica se o usuário é admin ao montar o componente
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        setIsAuthorized(false);
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.role === 'admin') {
+          setIsAuthorized(true);
+        } else {
+          setIsAuthorized(false);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar token:', error);
+        setIsAuthorized(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Carrega as salas ao montar o componente
+  useEffect(() => {
+    if (isAuthorized === true) {
+      fetchSalas();
+    }
+  }, [isAuthorized]);
+
+  const fetchSalas = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/salas`);
+      if (!response.ok) throw new Error('Erro ao buscar salas');
+      const data = await response.json();
+      setSalas(data);
+    } catch (error) {
+      console.error('Erro ao buscar salas:', error);
+      setMessage({ type: 'error', text: 'Erro ao carregar salas.' });
+    }
+  };
 
   const handleShowAddForm = () => {
     setView('add');
@@ -49,55 +92,181 @@ export default function AdminDashboard() {
   // --- Funções de CRUD ---
 
   // Deletar
-  const handleDelete = (salaId) => {
-    console.log("Deletando sala:", salaId);
-    setSalas(salas.filter(s => s.id !== salaId));
-    setMessage({ type: "success", text: "Sala deletada com sucesso!" });
-    // Esconde a mensagem após 3s
-    setTimeout(() => setMessage(null), 3000);
+  const handleDelete = async (salaId) => {
+    if (!window.confirm('Tem certeza que deseja deletar esta sala?')) return;
+
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setMessage({ type: 'error', text: 'Erro de autenticação. Faça login.' });
+      setTimeout(() => navigate('/login'), 2000);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/salas/${salaId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Erro ao deletar sala');
+
+      setSalas(salas.filter(s => s.id !== salaId));
+      setMessage({ type: "success", text: "Sala deletada com sucesso!" });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Erro ao deletar sala:', error);
+      setMessage({ type: 'error', text: 'Erro ao deletar sala.' });
+    }
   };
 
   // Submit (Adicionar ou Editar)
-  const handleSubmit = (e) => {
+  const handleLogout = (e) => {
+    e.preventDefault();
+    localStorage.removeItem('authToken');
+    navigate('/login');
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!nomeSala || !localSala) {
       setMessage({ type: "error", text: "Preencha todos os campos." });
       return;
     }
 
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setMessage({ type: 'error', text: 'Erro de autenticação. Faça login.' });
+      setTimeout(() => navigate('/login'), 2000);
+      return;
+    }
+
     setIsLoading(true);
     
-    // Simulação de API
-    setTimeout(() => {
+    try {
       if (view === 'add') {
         // Adicionar
-        const novaSala = {
-          id: Date.now(), // ID temporário
-          name: nomeSala,
-          location: localSala
-        };
+        const response = await fetch(`${API_BASE_URL}/salas`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: nomeSala,
+            location: localSala
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Erro ao criar sala');
+        }
+
+        const novaSala = await response.json();
         setSalas([...salas, novaSala]);
         setMessage({ type: "success", text: "Sala cadastrada com sucesso!" });
       } else {
         // Editar
+        const response = await fetch(`${API_BASE_URL}/salas/${currentSala.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: nomeSala,
+            location: localSala
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Erro ao atualizar sala');
+        }
+
         setSalas(salas.map(s => 
           s.id === currentSala.id ? { ...s, name: nomeSala, location: localSala } : s
         ));
         setMessage({ type: "success", text: "Sala atualizada com sucesso!" });
       }
       
-      setIsLoading(False);
-      // Volta para a lista após o sucesso
-      setTimeout(() => handleCancel(), 1500); 
-    }, 1000);
+      setIsLoading(false);
+      
+      // Volta para a lista após 2 segundos APENAS se foi sucesso
+      setTimeout(() => {
+        handleCancel();
+      }, 2000); 
+      
+    } catch (error) {
+      console.error('Erro ao salvar sala:', error);
+      setMessage({ type: 'error', text: error.message || 'Erro ao salvar sala.' });
+      setIsLoading(false);
+      // NÃO redireciona em caso de erro
+    }
   };
+
+  // Tela de carregamento
+  if (isAuthorized === null) {
+    return (
+      <>
+        <h1 className="app-logo">SIRESA</h1>
+        <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
+          <p>Verificando permissões...</p>
+        </div>
+      </>
+    );
+  }
+
+  // Tela de não autorizado
+  if (isAuthorized === false) {
+    return (
+      <>
+        <h1 className="app-logo">SIRESA</h1>
+        <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🚫</div>
+          <h2 className="form-title" style={{ color: '#e74c3c', marginBottom: '1rem' }}>Acesso Negado</h2>
+          <p style={{ marginBottom: '2rem', color: '#666' }}>
+            Você não tem permissão para acessar esta página.
+            <br />
+            Apenas administradores podem acessar o painel administrativo.
+          </p>
+          <button 
+            className="login-button" 
+            onClick={() => navigate('/dashboard')}
+            style={{ marginBottom: '1rem' }}
+          >
+            Ir para Dashboard
+          </button>
+          <br />
+          <button 
+            className="login-button cancel" 
+            onClick={() => navigate('/login')}
+          >
+            Fazer Login
+          </button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <h1 className="app-logo">SIRESA</h1>
+
+      <div className="page-user-actions">
+        <span className="welcome-message">Painel do Administrador</span>
+        <div className="user-actions">
+          <a href="/login" onClick={handleLogout} className="header-icon" title="Sair">
+            <i className="material-symbols-rounded">logout</i>
+          </a>
+        </div>
+      </div>
+
       <div className="login-container admin-dashboard">
-        <h2 className="form-title">Painel do Administrador</h2>
-        <p className="separator"><span>Gerenciamento de Salas</span></p>
+        <h2 className="form-title">Gerenciamento de Salas</h2>
+        <p className="separator"><span>Cadastro e Edição</span></p>
 
         {view === 'list' && (
           <div className="admin-view">
@@ -170,7 +339,7 @@ export default function AdminDashboard() {
                 onChange={(e) => setLocalSala(e.target.value)}
               />
 
-              {message && message.type === 'error' && (
+              {message && (
                 <div className={`form-message ${message.type}`}>
                   {message.text}
                 </div>

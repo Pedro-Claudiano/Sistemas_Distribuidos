@@ -1,18 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// --- MOCK DE DADOS ---
-const mockRooms = [
-  { id: '101', name: 'Sala 1', location: "Prédio ADM" },
-  { id: '102', name: 'Sala 2', location: "Prédio ADM" },
-  { id: '201', name: 'Laboratório 1', location: "Prédio de Eletrônica" },
-  { id: '305', name: 'Auditório Principal', location: "Prédio Principal" },
-];
-
-// Mock de Reservas do Usuário
-const mockMyReservas = [
-  { id: 1, roomId: '101', roomName: "Sala 1", date: "2023-10-27", time: "08:00 - 08:50" },
-];
+const API_BASE_URL = '/api';
 
 const allTimeSlots = [
   { label: '08:00 - 08:50', start: '08:00:00', end: '08:50:00' },
@@ -57,33 +46,140 @@ export default function RoomSelection() {
   const [isEditing, setIsEditing] = useState(false); 
   const [editingReservaId, setEditingReservaId] = useState(null);
 
-  const [myReservas, setMyReservas] = useState(mockMyReservas);
+  const [myReservas, setMyReservas] = useState([]);
 
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isSlotsLoading, setIsSlotsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(null); // null = verificando, true = autenticado, false = não autenticado
   const navigate = useNavigate();
 
+  // Verifica se o usuário está autenticado e é cliente
   useEffect(() => {
-    setRooms(mockRooms);
-    setUserName("Yuri");
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setIsAuthenticated(false);
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      // Admin não pode acessar dashboard de clientes
+      if (payload.role === 'admin') {
+        setIsAuthenticated(false);
+        return;
+      }
+      setUserName(payload.name || "Usuário");
+      setIsAuthenticated(true);
+    } catch (e) {
+      console.error('Erro ao decodificar token:', e);
+      setIsAuthenticated(false);
+    }
   }, []);
 
-  // Carrega horários
+  // Carrega salas e reservas ao montar
   useEffect(() => {
-    if (selectedRoom && (selectedDates.length > 0 || tempDate)) {
+    if (isAuthenticated === true) {
+      fetchRooms();
+      fetchMyReservas();
+    }
+  }, [isAuthenticated]);
+
+  const fetchRooms = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/salas`);
+      if (!response.ok) throw new Error('Erro ao buscar salas');
+      const data = await response.json();
+      setRooms(data);
+    } catch (error) {
+      console.error('Erro ao buscar salas:', error);
+      setMessage({ type: 'error', text: 'Erro ao carregar salas.' });
+    }
+  };
+
+  const fetchMyReservas = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const userId = payload.userId;
+
+      const response = await fetch(`${API_BASE_URL}/reservas/usuario/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Erro ao buscar reservas');
+      const data = await response.json();
+      
+      // Busca as salas se ainda não foram carregadas
+      let roomsList = rooms;
+      if (roomsList.length === 0) {
+        const salasResponse = await fetch(`${API_BASE_URL}/salas`);
+        if (salasResponse.ok) {
+          roomsList = await salasResponse.json();
+          setRooms(roomsList);
+        }
+      }
+      
+      // Formata as reservas para o formato esperado pelo componente
+      const formattedReservas = data.map(r => {
+        const room = roomsList.find(room => room.id === r.room_id);
+        return {
+          id: r.id,
+          roomId: r.room_id,
+          roomName: room ? `${room.name}` : 'Sala não encontrada',
+          roomLocation: room ? room.location : '',
+          date: r.start_time.split('T')[0],
+          time: formatTimeRange(r.start_time, r.end_time)
+        };
+      });
+
+      setMyReservas(formattedReservas);
+    } catch (error) {
+      console.error('Erro ao buscar reservas:', error);
+    }
+  };
+
+  const formatTimeRange = (startTime, endTime) => {
+    // Extrai apenas a parte do horário (HH:MM) sem conversão de fuso
+    const startHour = startTime.split('T')[1]?.substring(0, 5) || '00:00';
+    const endHour = endTime.split('T')[1]?.substring(0, 5) || '00:00';
+    return `${startHour} - ${endHour}`;
+  };
+
+  // Carrega horários disponíveis do backend
+  useEffect(() => {
+    const fetchAvailableSlots = async () => {
+      if (!selectedRoom) return;
+      
+      // Usa tempDate para edição, ou a primeira data selecionada para criação
+      const dateToCheck = isEditing ? tempDate : (selectedDates.length > 0 ? selectedDates[0] : tempDate);
+      if (!dateToCheck) return;
+
       setIsSlotsLoading(true);
       setAvailableSlots([]);
       
-      if (!isEditing) setSelectedTime(''); 
-      
-      setTimeout(() => {
-        const mockAvailable = allTimeSlots.filter(() => Math.random() > 0.1);
-        setAvailableSlots(mockAvailable);
+      if (!isEditing) setSelectedTime('');
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/salas/${selectedRoom}/horarios-disponiveis?date=${dateToCheck}`);
+        if (!response.ok) throw new Error('Erro ao buscar horários');
+        
+        const slots = await response.json();
+        setAvailableSlots(slots);
+      } catch (error) {
+        console.error('Erro ao buscar horários disponíveis:', error);
+        setMessage({ type: 'error', text: 'Erro ao carregar horários disponíveis.' });
+      } finally {
         setIsSlotsLoading(false);
-      }, 800);
-    }
+      }
+    };
+
+    fetchAvailableSlots();
   }, [selectedRoom, selectedDates, tempDate, isEditing]); 
 
 
@@ -120,18 +216,38 @@ export default function RoomSelection() {
     try {
       const slotDetails = allTimeSlots.find(slot => slot.label === selectedTime);
       if (!slotDetails) throw new Error("Horário selecionado inválido.");
-
-      const roomDetails = rooms.find(room => room.id === selectedRoom);
       
-      await new Promise(resolve => setTimeout(resolve, 1500)); 
-
       if (isEditing) {
-        // ATUALIZAR (Edição é de uma data só por vez)
-        setMyReservas(prev => prev.map(r => 
-            r.id === editingReservaId 
-            ? { ...r, roomId: selectedRoom, roomName: roomDetails.name, date: tempDate, time: selectedTime }
-            : r
-        ));
+        // ATUALIZAR não é suportado pela API atual, então vamos deletar e criar novamente
+        await fetch(`${API_BASE_URL}/reservas/${editingReservaId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        // Cria nova reserva
+        const startDateTime = `${tempDate}T${slotDetails.start}`;
+        const endDateTime = `${tempDate}T${slotDetails.end}`;
+
+        const response = await fetch(`${API_BASE_URL}/reservas`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            room_id: selectedRoom,
+            start_time: startDateTime,
+            end_time: endDateTime
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Erro ao atualizar reserva');
+        }
+
         setMessage({ type: 'success', text: `Reserva atualizada com sucesso!` });
         setIsEditing(false);
         setEditingReservaId(null);
@@ -139,17 +255,36 @@ export default function RoomSelection() {
         // CRIAR (Pode ser múltiplas datas)
         if (selectedDates.length === 0) throw new Error("Selecione pelo menos uma data.");
 
-        const newReservas = selectedDates.map(date => ({
-            id: Date.now() + Math.random(),
-            roomId: selectedRoom,
-            roomName: roomDetails.name,
-            date: date,
-            time: selectedTime
-        }));
+        const promises = selectedDates.map(date => {
+          const startDateTime = `${date}T${slotDetails.start}`;
+          const endDateTime = `${date}T${slotDetails.end}`;
 
-        setMyReservas(prev => [...prev, ...newReservas]);
-        setMessage({ type: 'success', text: `${newReservas.length} reserva(s) criada(s) com sucesso!` });
+          return fetch(`${API_BASE_URL}/reservas`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              room_id: selectedRoom,
+              start_time: startDateTime,
+              end_time: endDateTime
+            })
+          });
+        });
+
+        const responses = await Promise.all(promises);
+        const failedCount = responses.filter(r => !r.ok).length;
+
+        if (failedCount > 0) {
+          throw new Error(`${failedCount} reserva(s) falharam. Verifique conflitos.`);
+        }
+
+        setMessage({ type: 'success', text: `${selectedDates.length} reserva(s) criada(s) com sucesso!` });
       }
+      
+      // Recarrega as reservas
+      await fetchMyReservas();
       
       // Limpa o formulário
       setSelectedRoom('');
@@ -192,12 +327,38 @@ export default function RoomSelection() {
   };
 
   // --- DELETAR ---
-  const handleDeleteReserva = (reservaId) => {
-    if (window.confirm("Tem certeza que deseja cancelar esta reserva?")) {
-        setMyReservas(prev => prev.filter(r => r.id !== reservaId));
-        if (isEditing && editingReservaId === reservaId) {
-            handleCancelEdit();
+  const handleDeleteReserva = async (reservaId) => {
+    if (!window.confirm("Tem certeza que deseja cancelar esta reserva?")) return;
+
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setMessage({ type: 'error', text: 'Erro de autenticação. Faça login.' });
+      setTimeout(() => navigate('/login'), 2000);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/reservas/${reservaId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao deletar reserva');
+      }
+
+      setMyReservas(prev => prev.filter(r => r.id !== reservaId));
+      if (isEditing && editingReservaId === reservaId) {
+        handleCancelEdit();
+      }
+      setMessage({ type: 'success', text: 'Reserva cancelada com sucesso!' });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Erro ao deletar reserva:', error);
+      setMessage({ type: 'error', text: error.message || 'Erro ao cancelar reserva.' });
     }
   };
 
@@ -206,6 +367,85 @@ export default function RoomSelection() {
     localStorage.removeItem('authToken');
     navigate('/login');
   };
+
+  // Tela de carregamento
+  if (isAuthenticated === null) {
+    return (
+      <>
+        <h1 className="app-logo">SIRESA</h1>
+        <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
+          <p>Verificando autenticação...</p>
+        </div>
+      </>
+    );
+  }
+
+  // Tela de não autenticado ou admin tentando acessar
+  if (isAuthenticated === false) {
+    const token = localStorage.getItem('authToken');
+    let isAdmin = false;
+    
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        isAdmin = payload.role === 'admin';
+      } catch (e) {
+        // Token inválido
+      }
+    }
+
+    return (
+      <>
+        <h1 className="app-logo">SIRESA</h1>
+        <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>{isAdmin ? '🚫' : '🔒'}</div>
+          <h2 className="form-title" style={{ color: '#e74c3c', marginBottom: '1rem' }}>
+            {isAdmin ? 'Acesso Negado' : 'Acesso Restrito'}
+          </h2>
+          <p style={{ marginBottom: '2rem', color: '#666' }}>
+            {isAdmin ? (
+              <>
+                Esta página é exclusiva para clientes.
+                <br />
+                Administradores devem usar o painel administrativo.
+              </>
+            ) : (
+              <>
+                Você precisa estar logado para acessar esta página.
+                <br />
+                Faça login ou crie uma conta para continuar.
+              </>
+            )}
+          </p>
+          {isAdmin ? (
+            <button 
+              className="login-button" 
+              onClick={() => navigate('/admin')}
+            >
+              Ir para Painel Admin
+            </button>
+          ) : (
+            <>
+              <button 
+                className="login-button" 
+                onClick={() => navigate('/login')}
+                style={{ marginBottom: '1rem' }}
+              >
+                Fazer Login
+              </button>
+              <br />
+              <button 
+                className="login-button cancel" 
+                onClick={() => navigate('/register')}
+              >
+                Criar Conta
+              </button>
+            </>
+          )}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -371,6 +611,7 @@ export default function RoomSelection() {
                     <thead>
                         <tr>
                             <th>Sala</th>
+                            <th>Prédio</th>
                             <th>Data</th>
                             <th>Horário</th>
                             <th>Ações</th>
@@ -380,6 +621,7 @@ export default function RoomSelection() {
                         {myReservas.map(reserva => (
                             <tr key={reserva.id} style={editingReservaId === reserva.id ? { backgroundColor: '#f0f8ff' } : {}}>
                                 <td>{reserva.roomName}</td>
+                                <td>{reserva.roomLocation}</td>
                                 <td>{formatDateDisplay(reserva.date)}</td>
                                 <td>{reserva.time}</td>
                                 <td className="room-actions">

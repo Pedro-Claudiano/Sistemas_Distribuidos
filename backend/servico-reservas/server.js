@@ -140,6 +140,199 @@ function authorizeRole(allowedRoles) {
 // ----- FIM: Middleware de Autorização por Role -----
 
 
+// --- ROTAS PARA SALAS ---
+
+// Listar todas as salas (público)
+apiRouter.get('/salas', async (req, res) => {
+  console.log('[Salas] Listando todas as salas.');
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.query('SELECT * FROM Salas ORDER BY name');
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error('Erro ao listar salas:', err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Criar sala (Admin only)
+apiRouter.post('/salas', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { name, location } = req.body;
+  const adminId = req.user.userId;
+
+  console.log(`[Salas] Admin ${adminId} criando sala: ${name}`);
+
+  if (!name || !location) {
+    return res.status(400).json({ error: 'name e location são obrigatórios.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    // Verifica se já existe uma sala com o mesmo nome e local
+    const [existing] = await connection.query(
+      'SELECT id FROM Salas WHERE name = ? AND location = ?',
+      [name, location]
+    );
+
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'Já existe uma sala com este nome neste local.' });
+    }
+
+    const salaId = uuidv4();
+    await connection.query(
+      'INSERT INTO Salas (id, name, location) VALUES (?, ?, ?)',
+      [salaId, name, location]
+    );
+
+    console.log(`[Salas] Sala ${salaId} criada com sucesso.`);
+    res.status(201).json({ id: salaId, name, location });
+  } catch (err) {
+    console.error('Erro ao criar sala:', err);
+    // Verifica se é erro de chave duplicada
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Já existe uma sala com este nome neste local.' });
+    }
+    res.status(500).json({ error: 'Não foi possível criar a sala.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Atualizar sala (Admin only)
+apiRouter.put('/salas/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const salaId = req.params.id;
+  const { name, location } = req.body;
+  const adminId = req.user.userId;
+
+  console.log(`[Salas] Admin ${adminId} atualizando sala ${salaId}`);
+
+  if (!name && !location) {
+    return res.status(400).json({ error: 'Forneça pelo menos um campo para atualizar.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    // Busca a sala atual
+    const [salas] = await connection.query('SELECT * FROM Salas WHERE id = ?', [salaId]);
+    if (salas.length === 0) {
+      return res.status(404).json({ error: 'Sala não encontrada.' });
+    }
+
+    const sala = salas[0];
+    const newName = name || sala.name;
+    const newLocation = location || sala.location;
+
+    await connection.query(
+      'UPDATE Salas SET name = ?, location = ? WHERE id = ?',
+      [newName, newLocation, salaId]
+    );
+
+    console.log(`[Salas] Sala ${salaId} atualizada com sucesso.`);
+    res.status(200).json({ id: salaId, name: newName, location: newLocation });
+  } catch (err) {
+    console.error('Erro ao atualizar sala:', err);
+    res.status(500).json({ error: 'Não foi possível atualizar a sala.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Deletar sala (Admin only)
+apiRouter.delete('/salas/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const salaId = req.params.id;
+  const adminId = req.user.userId;
+
+  console.log(`[Salas] Admin ${adminId} deletando sala ${salaId}`);
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [result] = await connection.query('DELETE FROM Salas WHERE id = ?', [salaId]);
+
+    if (result.affectedRows > 0) {
+      console.log(`[Salas] Sala ${salaId} deletada com sucesso.`);
+      res.status(200).json({ message: 'Sala deletada com sucesso.' });
+    } else {
+      res.status(404).json({ error: 'Sala não encontrada.' });
+    }
+  } catch (err) {
+    console.error('Erro ao deletar sala:', err);
+    res.status(500).json({ error: 'Não foi possível deletar a sala.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// --- ROTA PARA BUSCAR HORÁRIOS DISPONÍVEIS ---
+apiRouter.get('/salas/:salaId/horarios-disponiveis', async (req, res) => {
+  const { salaId } = req.params;
+  const { date } = req.query;
+
+  if (!date) {
+    return res.status(400).json({ error: 'Data é obrigatória (formato: YYYY-MM-DD)' });
+  }
+
+  console.log(`[Horários] Buscando horários disponíveis para sala ${salaId} na data ${date}`);
+
+  // Todos os horários possíveis
+  const allTimeSlots = [
+    { label: '08:00 - 08:50', start: '08:00:00', end: '08:50:00' },
+    { label: '08:50 - 09:40', start: '08:50:00', end: '09:40:00' },
+    { label: '09:40 - 10:30', start: '09:40:00', end: '10:30:00' },
+    { label: '10:50 - 11:40', start: '10:50:00', end: '11:40:00' },
+    { label: '11:40 - 12:30', start: '11:40:00', end: '12:30:00' },
+    { label: '13:50 - 14:40', start: '13:50:00', end: '14:40:00' },
+    { label: '14:40 - 15:30', start: '14:40:00', end: '15:30:00' },
+    { label: '15:50 - 16:40', start: '15:50:00', end: '16:40:00' },
+    { label: '16:40 - 17:30', start: '16:40:00', end: '17:30:00' },
+  ];
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    // Busca todas as reservas para essa sala nessa data
+    const [reservas] = await connection.query(
+      `SELECT start_time, end_time FROM Reservas 
+       WHERE room_id = ? 
+       AND DATE(start_time) = ?`,
+      [salaId, date]
+    );
+
+    // Filtra os horários que não estão reservados
+    const availableSlots = allTimeSlots.filter(slot => {
+      const slotStart = `${date}T${slot.start}`;
+      const slotEnd = `${date}T${slot.end}`;
+
+      // Verifica se há conflito com alguma reserva existente
+      const hasConflict = reservas.some(reserva => {
+        const reservaStart = reserva.start_time.toISOString().slice(0, 19);
+        const reservaEnd = reserva.end_time.toISOString().slice(0, 19);
+        
+        // Há conflito se os horários se sobrepõem
+        return slotStart < reservaEnd && slotEnd > reservaStart;
+      });
+
+      return !hasConflict;
+    });
+
+    console.log(`[Horários] ${availableSlots.length} horários disponíveis encontrados`);
+    res.status(200).json(availableSlots);
+  } catch (err) {
+    console.error('Erro ao buscar horários disponíveis:', err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
 // --- ROTA PARA CRIAR UMA NOVA RESERVA (MODIFICADA com Lock - Passo 3) ---
 apiRouter.post('/reservas', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
@@ -175,25 +368,26 @@ apiRouter.post('/reservas', authenticateToken, async (req, res) => {
 
     lockAcquired = true;
     console.log(`[Lock] Lock adquirido com sucesso para a chave: ${lockKey}`);
-    
-    console.log('[Lock] SIMULANDO TRABALHO LENTO... (dormindo por 5 segundos)');
-    await new Promise(res => setTimeout(res, 5000)); // Sleep de 5 segundos
     // --- FIM DA LÓGICA DE LOCK ---
     
     // 3. Se o lock foi adquirido, prossiga com a lógica de banco de dados
     connection = await pool.getConnection();
 
     // *** CHECAGEM DE CONFLITO NO BANCO (IMPORTANTE) ***
-    // Mesmo com o lock, devemos verificar se a reserva já existe
-    // (o lock só previne 'race conditions', não reservas duplicadas lógicas)
+    // Verifica se há sobreposição de horários
+    // Uma reserva conflita se:
+    // - Começa antes do fim da nova reserva E
+    // - Termina depois do início da nova reserva
     const [existing] = await connection.query(
-        'SELECT id FROM Reservas WHERE room_id = ? AND start_time = ?', // Simplificado
-        [room_id, start_time]
+        `SELECT id FROM Reservas 
+         WHERE room_id = ? 
+         AND start_time < ? 
+         AND end_time > ?`,
+        [room_id, end_time, start_time]
     );
 
     if (existing.length > 0) {
-        console.warn(`[Reservas] Tentativa de reserva duplicada (lógica) para sala ${room_id}`);
-        // Nota: O erro 409 aqui é diferente do erro 409 do lock
+        console.warn(`[Reservas] Conflito de horário para sala ${room_id} entre ${start_time} e ${end_time}`);
         return res.status(409).json({ error: 'Esta sala já está reservada para este horário.' });
     }
 

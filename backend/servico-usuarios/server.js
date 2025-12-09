@@ -227,6 +227,118 @@ apiRouter.get('/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Atualizar Usuário
+apiRouter.put('/users/:id', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+  const { email, password } = req.body;
+  const userIdFromToken = req.user.userId;
+  const userRole = req.user.role;
+
+  // Usuários só podem atualizar seu próprio perfil, admins podem atualizar qualquer um
+  if (userRole !== 'admin' && userId !== userIdFromToken) {
+    logger.warn(`Tentativa de atualização não autorizada. User: ${userIdFromToken}, Target: ${userId}`);
+    return res.status(403).json({ error: 'Você não tem permissão para atualizar este usuário.' });
+  }
+
+  if (!email && !password) {
+    return res.status(400).json({ error: 'Forneça pelo menos um campo para atualizar.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    // Busca o usuário atual
+    const [users] = await connection.query('SELECT * FROM Usuarios WHERE id = ?', [userId]);
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+
+    const user = users[0];
+    const newEmail = email || user.email;
+    let newPasswordHash = user.password_hash;
+
+    // Se forneceu nova senha, faz o hash
+    if (password) {
+      newPasswordHash = await bcrypt.hash(password, saltRounds);
+    }
+
+    // Atualiza no banco
+    await connection.query(
+      'UPDATE Usuarios SET email = ?, password_hash = ? WHERE id = ?',
+      [newEmail, newPasswordHash, userId]
+    );
+
+    logger.info(`Usuário ${userId} atualizado com sucesso.`);
+    res.status(200).json({ message: 'Perfil atualizado com sucesso.' });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      logger.warn(`Tentativa de atualização com email duplicado: ${email}`);
+      return res.status(409).json({ error: 'Este email já está em uso.' });
+    }
+    logger.error(`Erro ao atualizar usuário: ${err.message}`);
+    res.status(500).json({ error: 'Erro ao atualizar perfil.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Deletar Usuário
+apiRouter.delete('/users/:id', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+  const userIdFromToken = req.user.userId;
+  const userRole = req.user.role;
+
+  // Usuários só podem deletar sua própria conta, admins podem deletar qualquer um
+  if (userRole !== 'admin' && userId !== userIdFromToken) {
+    logger.warn(`Tentativa de deleção não autorizada. User: ${userIdFromToken}, Target: ${userId}`);
+    return res.status(403).json({ error: 'Você não tem permissão para deletar este usuário.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    // Inicia uma transação para garantir que tudo seja deletado junto
+    await connection.beginTransaction();
+
+    // 1. Deleta todas as reservas do usuário
+    await connection.query('DELETE FROM Reservas WHERE user_id = ?', [userId]);
+    logger.info(`Reservas do usuário ${userId} deletadas.`);
+
+    // 2. Deleta todas as notificações do usuário
+    await connection.query('DELETE FROM Notificacoes WHERE user_id = ?', [userId]);
+    logger.info(`Notificações do usuário ${userId} deletadas.`);
+
+    // 3. Deleta o usuário
+    const [result] = await connection.query('DELETE FROM Usuarios WHERE id = ?', [userId]);
+
+    if (result.affectedRows > 0) {
+      // Confirma a transação
+      await connection.commit();
+      logger.info(`Usuário ${userId} e todos os seus dados deletados com sucesso.`);
+      res.status(200).json({ message: 'Conta deletada com sucesso.' });
+    } else {
+      // Desfaz a transação se o usuário não foi encontrado
+      await connection.rollback();
+      res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+  } catch (err) {
+    // Desfaz a transação em caso de erro
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackErr) {
+        logger.error(`Erro ao fazer rollback: ${rollbackErr.message}`);
+      }
+    }
+    logger.error(`Erro ao deletar usuário: ${err.message}`);
+    res.status(500).json({ error: 'Erro ao deletar conta.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
 // Health Check (Monitoramento)
 app.get('/health', async (req, res) => {
   const healthData = {

@@ -1,6 +1,15 @@
 -- Garante que estamos usando o banco de dados correto
 USE meu_projeto_db;
 
+-- Cria a tabela 'Salas'
+CREATE TABLE Salas (
+    id VARCHAR(36) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    location VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_sala_name_location (name, location)
+);
+
 -- Cria a tabela 'Usuarios' com a nova coluna 'role'
 CREATE TABLE Usuarios (
     id VARCHAR(36) PRIMARY KEY,
@@ -51,13 +60,13 @@ CREATE TABLE Notificacoes (
 
 /* --- INÍCIO: Criação do Utilizador da Aplicação --- */
 
--- Cria o utilizador 'admin' com a senha 'admin_password_123'
-CREATE USER 'admin'@'%' IDENTIFIED WITH mysql_native_password BY 'admin_password_123';
-CREATE USER 'admin'@'localhost' IDENTIFIED WITH mysql_native_password BY 'admin_password_123';
+-- Cria o utilizador 'app_user' com a senha 'app_password'
+CREATE USER 'app_user'@'%' IDENTIFIED WITH mysql_native_password BY 'app_password';
+CREATE USER 'app_user'@'localhost' IDENTIFIED WITH mysql_native_password BY 'app_password';
 
 -- Dá permissões a AMBOS os utilizadores
-GRANT ALL PRIVILEGES ON `meu_projeto_db`.* TO 'admin'@'%';
-GRANT ALL PRIVILEGES ON `meu_projeto_db`.* TO 'admin'@'localhost';
+GRANT ALL PRIVILEGES ON `meu_projeto_db`.* TO 'app_user'@'%';
+GRANT ALL PRIVILEGES ON `meu_projeto_db`.* TO 'app_user'@'localhost';
 
 /* --- FIM: Criação do Utilizador da Aplicação --- */
 
