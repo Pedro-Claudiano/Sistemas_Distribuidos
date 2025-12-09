@@ -54,6 +54,25 @@ services:
       timeout: 5s
       retries: 5
 
+  # SERVIÇO DE MENSAGERIA (RABBITMQ)
+  rabbitmq:
+    image: "rabbitmq:3-management-alpine"
+    container_name: rabbitmq
+    restart: unless-stopped
+    networks:
+      - default
+    ports:
+      - "5672:5672"   # Porta AMQP
+      - "15672:15672" # Interface de gerenciamento
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-admin123}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # SERVIÇO DE BACKEND - USUÁRIOS
   usuarios-service:
     build: ./backend/servico-usuarios
@@ -91,10 +110,15 @@ services:
       DB_PORT: ${DB_PORT_INTERNAL}
       JWT_SECRET: ${JWT_SECRET}
       REDIS_HOST: redis_lock
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:-admin123}
     depends_on:
       mysql-primary:
         condition: service_healthy
       redis_lock:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   # SERVIÇO DE FRONTEND (NGINX + HTTPS)

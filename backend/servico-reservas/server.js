@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken'); // Necessário para validação JWT
 const mysql = require('mysql2/promise'); // Driver MySQL
 const Redis = require('ioredis'); // ----- NOVO (Passo 2) -----
+const { connectRabbitMQ, sendNotification, startConsumer, closeRabbitMQ } = require('./messaging');
 
 // ----- INÍCIO: Conexão MySQL (MODIFICADO COM RETENTATIVAS) -----
 const pool = mysql.createPool({
@@ -47,6 +48,28 @@ const connectToMySQL = async () => {
 connectToMySQL();
 // ----- FIM: Conexão MySQL (MODIFICADO COM RETENTATIVAS) -----
 
+// ----- INÍCIO: Conexão RabbitMQ -----
+connectRabbitMQ();
+
+// Inicia o consumer para processar notificações
+startConsumer(async (notification) => {
+  // Salva a notificação no banco de dados
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.query(
+      'INSERT INTO Notificacoes (id, user_id, message, type, related_id) VALUES (?, ?, ?, ?, ?)',
+      [uuidv4(), notification.userId, notification.message, notification.type, notification.relatedId]
+    );
+    console.log(`[Notificação] Salva no banco para usuário ${notification.userId}`);
+  } catch (err) {
+    console.error('[Notificação] Erro ao salvar no banco:', err.message);
+  } finally {
+    if (connection) connection.release();
+  }
+});
+// ----- FIM: Conexão RabbitMQ -----
+
 
 // ----- NOVO: Conexão Redis (Passo 2) -----
 // Cria a instância do cliente Redis.
@@ -71,6 +94,7 @@ console.log(`[Reservas] Tentando conectar ao Redis no host: '${process.env.REDIS
 
 const app = express();
 const port = process.env.NODE_PORT || 3001;
+const apiRouter = express.Router();
 
 app.use(cors());
 app.use(express.json());
@@ -96,16 +120,28 @@ function authenticateToken(req, res, next) {
        console.log("[Auth - Reservas] Token inválido ou expirado:", err.message);
        return res.status(403).json({ error: 'Token inválido ou expirado.' }); // Token inválido/expirado
     }
-    console.log("[Auth - Reservas] Token validado com sucesso para userId:", userPayload.userId);
-    req.user = userPayload; // Adiciona o payload do token (contendo userId) ao objeto req
+    console.log("[Auth - Reservas] Token validado com sucesso para userId:", userPayload.userId, "role:", userPayload.role);
+    req.user = userPayload; // Adiciona o payload do token (contendo userId e role) ao objeto req
     next(); // Passa para a próxima função (a rota principal)
   });
 }
 // ----- FIM: Middleware de Autenticação JWT -----
 
+// ----- INÍCIO: Middleware de Autorização por Role -----
+function authorizeRole(allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      console.log(`[RBAC - Reservas] Acesso negado. User: ${req.user?.userId}, Role: ${req.user?.role}, Required: ${allowedRoles}`);
+      return res.status(403).json({ error: 'Acesso negado: Você não tem permissão para realizar esta ação.' });
+    }
+    next();
+  };
+}
+// ----- FIM: Middleware de Autorização por Role -----
+
 
 // --- ROTA PARA CRIAR UMA NOVA RESERVA (MODIFICADA com Lock - Passo 3) ---
-app.post('/reservas', authenticateToken, async (req, res) => {
+apiRouter.post('/reservas', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const { room_id, start_time, end_time } = req.body;
 
@@ -205,15 +241,34 @@ app.post('/reservas', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA LISTAR TODAS AS RESERVAS (Protegida por JWT) ---
-app.get('/reservas', authenticateToken, async (req, res) => {
-  console.log(`[Reservas] Buscando todas as reservas.`);
+// Clientes veem apenas suas reservas, Admins veem todas
+apiRouter.get('/reservas', authenticateToken, async (req, res) => {
+  const userIdFromToken = req.user.userId;
+  const userRole = req.user.role;
+  
+  console.log(`[Reservas] Usuário ${userIdFromToken} (${userRole}) buscando reservas.`);
+  
   let connection;
   try {
     connection = await pool.getConnection();
-    const [rows] = await connection.query('SELECT * FROM Reservas');
+    
+    // Se for ADMIN, retorna todas as reservas
+    // Se for CLIENT, retorna apenas as suas
+    let query, params;
+    if (userRole === 'admin') {
+      query = 'SELECT * FROM Reservas ORDER BY start_time DESC';
+      params = [];
+      console.log(`[Reservas] Admin buscando TODAS as reservas.`);
+    } else {
+      query = 'SELECT * FROM Reservas WHERE user_id = ? ORDER BY start_time DESC';
+      params = [userIdFromToken];
+      console.log(`[Reservas] Cliente buscando apenas suas reservas.`);
+    }
+    
+    const [rows] = await connection.query(query, params);
     res.status(200).json(rows);
   } catch (err) {
-    console.error("Erro ao buscar todas as reservas:", err);
+    console.error("Erro ao buscar reservas:", err);
     res.status(500).json({ error: 'Erro no servidor' });
   } finally {
      if (connection) connection.release();
@@ -221,16 +276,26 @@ app.get('/reservas', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA LISTAR RESERVAS DE UM USUÁRIO ESPECÍFICO (Protegida por JWT) ---
-app.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
+// Clientes só podem ver suas próprias reservas
+// Admins podem ver reservas de qualquer usuário
+apiRouter.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
   const requestedUserId = req.params.userId;
-  // Opcional: Adicionar verificação se o usuário do token pode ver estas reservas
-  console.log(`[Reservas] Buscando reservas para o usuário ${requestedUserId}`);
+  const userIdFromToken = req.user.userId;
+  const userRole = req.user.role;
+  
+  console.log(`[Reservas] Usuário ${userIdFromToken} (${userRole}) buscando reservas do usuário ${requestedUserId}`);
+
+  // Se não for admin e está tentando ver reservas de outro usuário, nega acesso
+  if (userRole !== 'admin' && requestedUserId !== userIdFromToken) {
+    console.log(`[Reservas] Acesso negado: Cliente tentando ver reservas de outro usuário.`);
+    return res.status(403).json({ error: 'Você não tem permissão para ver reservas de outros usuários.' });
+  }
 
   let connection;
   try {
     connection = await pool.getConnection();
     const [rows] = await connection.query(
-      'SELECT * FROM Reservas WHERE user_id = ?',
+      'SELECT * FROM Reservas WHERE user_id = ? ORDER BY start_time DESC',
       [requestedUserId]
     );
     res.status(200).json(rows);
@@ -243,30 +308,56 @@ app.get('/reservas/usuario/:userId', authenticateToken, async (req, res) => {
 });
 
 // --- ROTA PARA DELETAR UMA RESERVA (Protegida por JWT) ---
-app.delete('/reservas/:id', authenticateToken, async (req, res) => {
+// Clientes só podem deletar suas próprias reservas
+// Admins podem deletar qualquer reserva (e notificam o cliente afetado)
+apiRouter.delete('/reservas/:id', authenticateToken, async (req, res) => {
   const reservationIdToDelete = req.params.id;
   const userIdFromToken = req.user.userId;
-  console.log(`[Reservas] Usuário ${userIdFromToken} requisitou deletar reserva ${reservationIdToDelete}`);
+  const userRole = req.user.role;
+  
+  console.log(`[Reservas] Usuário ${userIdFromToken} (${userRole}) requisitou deletar reserva ${reservationIdToDelete}`);
+  
   let connection;
   try {
     connection = await pool.getConnection();
 
-    // Adiciona uma verificação extra: só permite apagar se a reserva pertencer ao usuário (ou se for admin, etc.)
-    // Esta lógica pode ser ajustada conforme as regras do seu negócio.
-    const [result] = await connection.query(
-      'DELETE FROM Reservas WHERE id = ? AND user_id = ?', // Adiciona a condição user_id
-      [reservationIdToDelete, userIdFromToken]
+    // Primeiro, busca a reserva para pegar informações antes de deletar
+    const [reservations] = await connection.query(
+      'SELECT user_id, room_id, start_time, end_time FROM Reservas WHERE id = ?',
+      [reservationIdToDelete]
     );
 
-    if (result.affectedRows > 0) {
-       console.log(`[Reservas] Reserva ${reservationIdToDelete} deletada com sucesso pelo usuário ${userIdFromToken}.`);
-       res.status(200).json({ message: "Reserva deletada com sucesso." });
-    } else {
-      // Pode ser que a reserva não exista OU não pertença ao usuário
-      // Para saber a diferença, pode-se fazer um SELECT antes
-       console.log(`[Reservas] Reserva ${reservationIdToDelete} não encontrada ou não pertence ao usuário ${userIdFromToken}.`);
-       res.status(404).json({ error: "Reserva não encontrada ou não pertence ao usuário." });
+    if (reservations.length === 0) {
+      return res.status(404).json({ error: "Reserva não encontrada." });
     }
+
+    const reservation = reservations[0];
+    const reservationOwnerId = reservation.user_id;
+
+    // Verifica permissões
+    if (userRole !== 'admin' && reservationOwnerId !== userIdFromToken) {
+      return res.status(403).json({ error: "Você não tem permissão para deletar esta reserva." });
+    }
+
+    // Deleta a reserva
+    await connection.query('DELETE FROM Reservas WHERE id = ?', [reservationIdToDelete]);
+
+    console.log(`[Reservas] Reserva ${reservationIdToDelete} deletada com sucesso pelo usuário ${userIdFromToken} (${userRole}).`);
+
+    // Se foi um ADMIN que deletou a reserva de OUTRO usuário, envia notificação
+    if (userRole === 'admin' && reservationOwnerId !== userIdFromToken) {
+      const notification = {
+        userId: reservationOwnerId,
+        message: `Sua reserva da sala ${reservation.room_id} para ${new Date(reservation.start_time).toLocaleString('pt-BR')} foi cancelada por um administrador.`,
+        type: 'reservation_deleted',
+        relatedId: reservationIdToDelete
+      };
+      
+      await sendNotification(notification);
+      console.log(`[Reservas] Notificação enviada ao usuário ${reservationOwnerId}`);
+    }
+
+    res.status(200).json({ message: "Reserva deletada com sucesso." });
   } catch (err) {
     console.error(`Erro ao deletar reserva ${reservationIdToDelete}:`, err);
     res.status(500).json({ error: 'Não foi possível deletar a reserva.' });
@@ -274,6 +365,238 @@ app.delete('/reservas/:id', authenticateToken, async (req, res) => {
     if (connection) connection.release();
   }
 });
+
+// --- ROTA PARA ATUALIZAR UMA RESERVA (Admin only) ---
+apiRouter.put('/reservas/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const reservationId = req.params.id;
+  const { room_id, start_time, end_time } = req.body;
+  const adminId = req.user.userId;
+
+  console.log(`[Reservas] Admin ${adminId} atualizando reserva ${reservationId}`);
+
+  if (!room_id && !start_time && !end_time) {
+    return res.status(400).json({ error: 'Forneça pelo menos um campo para atualizar.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    // Busca a reserva atual
+    const [reservations] = await connection.query(
+      'SELECT user_id, room_id, start_time, end_time FROM Reservas WHERE id = ?',
+      [reservationId]
+    );
+
+    if (reservations.length === 0) {
+      return res.status(404).json({ error: 'Reserva não encontrada.' });
+    }
+
+    const oldReservation = reservations[0];
+    const affectedUserId = oldReservation.user_id;
+
+    // Atualiza os campos fornecidos
+    const newRoomId = room_id || oldReservation.room_id;
+    const newStartTime = start_time || oldReservation.start_time;
+    const newEndTime = end_time || oldReservation.end_time;
+
+    await connection.query(
+      'UPDATE Reservas SET room_id = ?, start_time = ?, end_time = ? WHERE id = ?',
+      [newRoomId, newStartTime, newEndTime, reservationId]
+    );
+
+    console.log(`[Reservas] Reserva ${reservationId} atualizada com sucesso.`);
+
+    // Envia notificação ao usuário afetado
+    const notification = {
+      userId: affectedUserId,
+      message: `Sua reserva foi modificada por um administrador. Nova sala: ${newRoomId}, Novo horário: ${new Date(newStartTime).toLocaleString('pt-BR')} - ${new Date(newEndTime).toLocaleString('pt-BR')}`,
+      type: 'reservation_modified',
+      relatedId: reservationId
+    };
+
+    await sendNotification(notification);
+    console.log(`[Reservas] Notificação de modificação enviada ao usuário ${affectedUserId}`);
+
+    res.status(200).json({
+      message: 'Reserva atualizada com sucesso.',
+      reservation: {
+        id: reservationId,
+        roomId: newRoomId,
+        startTime: newStartTime,
+        endTime: newEndTime
+      }
+    });
+  } catch (err) {
+    console.error(`Erro ao atualizar reserva ${reservationId}:`, err);
+    res.status(500).json({ error: 'Não foi possível atualizar a reserva.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// --- ROTAS PARA EVENTOS (Admin only) ---
+
+// Criar Evento
+apiRouter.post('/eventos', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { name, description, room_id, start_time, end_time } = req.body;
+  const adminId = req.user.userId;
+
+  console.log(`[Eventos] Admin ${adminId} criando evento: ${name}`);
+
+  if (!name || !room_id || !start_time || !end_time) {
+    return res.status(400).json({ error: 'name, room_id, start_time e end_time são obrigatórios.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    // Verifica se a sala já está reservada nesse horário
+    const [conflicts] = await connection.query(
+      'SELECT id FROM Reservas WHERE room_id = ? AND start_time = ?',
+      [room_id, start_time]
+    );
+
+    if (conflicts.length > 0) {
+      return res.status(409).json({ error: 'Esta sala já está reservada para este horário.' });
+    }
+
+    // Cria o evento
+    const eventId = uuidv4();
+    await connection.query(
+      'INSERT INTO Eventos (id, name, description, room_id, start_time, end_time, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [eventId, name, description || '', room_id, start_time, end_time, adminId]
+    );
+
+    console.log(`[Eventos] Evento ${eventId} criado com sucesso.`);
+
+    // Busca todos os usuários para notificar sobre o novo evento
+    const [users] = await connection.query('SELECT id FROM Usuarios WHERE role = "client"');
+    
+    // Envia notificação para todos os clientes
+    for (const user of users) {
+      const notification = {
+        userId: user.id,
+        message: `Novo evento criado: "${name}" na sala ${room_id} em ${new Date(start_time).toLocaleString('pt-BR')}`,
+        type: 'event_created',
+        relatedId: eventId
+      };
+      await sendNotification(notification);
+    }
+
+    console.log(`[Eventos] Notificações enviadas para ${users.length} usuários.`);
+
+    res.status(201).json({
+      id: eventId,
+      name,
+      description,
+      roomId: room_id,
+      startTime: start_time,
+      endTime: end_time,
+      createdBy: adminId
+    });
+  } catch (err) {
+    console.error('Erro ao criar evento:', err);
+    res.status(500).json({ error: 'Não foi possível criar o evento.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Listar Eventos
+apiRouter.get('/eventos', authenticateToken, async (req, res) => {
+  console.log(`[Eventos] Usuário ${req.user.userId} listando eventos.`);
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [events] = await connection.query('SELECT * FROM Eventos ORDER BY start_time DESC');
+    res.status(200).json(events);
+  } catch (err) {
+    console.error('Erro ao listar eventos:', err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Deletar Evento (Admin only)
+apiRouter.delete('/eventos/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const eventId = req.params.id;
+  const adminId = req.user.userId;
+
+  console.log(`[Eventos] Admin ${adminId} deletando evento ${eventId}`);
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [result] = await connection.query('DELETE FROM Eventos WHERE id = ?', [eventId]);
+
+    if (result.affectedRows > 0) {
+      console.log(`[Eventos] Evento ${eventId} deletado com sucesso.`);
+      res.status(200).json({ message: 'Evento deletado com sucesso.' });
+    } else {
+      res.status(404).json({ error: 'Evento não encontrado.' });
+    }
+  } catch (err) {
+    console.error(`Erro ao deletar evento ${eventId}:`, err);
+    res.status(500).json({ error: 'Não foi possível deletar o evento.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// --- ROTAS PARA NOTIFICAÇÕES ---
+
+// Listar Notificações do Usuário
+apiRouter.get('/notificacoes', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  console.log(`[Notificações] Usuário ${userId} buscando suas notificações.`);
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [notifications] = await connection.query(
+      'SELECT * FROM Notificacoes WHERE user_id = ? ORDER BY created_at DESC',
+      [userId]
+    );
+    res.status(200).json(notifications);
+  } catch (err) {
+    console.error('Erro ao buscar notificações:', err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Marcar Notificação como Lida
+apiRouter.put('/notificacoes/:id/lida', authenticateToken, async (req, res) => {
+  const notificationId = req.params.id;
+  const userId = req.user.userId;
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [result] = await connection.query(
+      'UPDATE Notificacoes SET is_read = TRUE WHERE id = ? AND user_id = ?',
+      [notificationId, userId]
+    );
+
+    if (result.affectedRows > 0) {
+      res.status(200).json({ message: 'Notificação marcada como lida.' });
+    } else {
+      res.status(404).json({ error: 'Notificação não encontrada.' });
+    }
+  } catch (err) {
+    console.error('Erro ao marcar notificação:', err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+app.use('/api', apiRouter);
 
 // --- Endpoint de Health Check ---
 app.get('/health', async (req, res) => {
@@ -302,27 +625,28 @@ const server = app.listen(port, () => {
   console.log(`Serviço de Reservas rodando na porta ${port}`);
 });
 
-// --- MODIFICADO: Lógica de Graceful Shutdown (Passo 2) ---
+// --- MODIFICADO: Lógica de Graceful Shutdown ---
 const gracefulShutdown = async (signal) => {
   console.log(`\n[Shutdown] Recebido sinal ${signal}. Fechando conexões...`);
   server.close(async () => {
     console.log('[Shutdown] Servidor HTTP fechado.');
     try {
-      // Tenta fechar ambas as conexões
+      // Tenta fechar todas as conexões
       await Promise.all([
           pool.end(),
-          redisClient.quit()
+          redisClient.quit(),
+          closeRabbitMQ()
       ]);
-      console.log('[Shutdown] Pool do MySQL e conexão Redis fechados com sucesso.');
+      console.log('[Shutdown] Pool do MySQL, Redis e RabbitMQ fechados com sucesso.');
     } catch (err) {
-      console.error('[Shutdown] Erro ao fechar conexões de banco de dados:', err.message);
+      console.error('[Shutdown] Erro ao fechar conexões:', err.message);
     } finally {
        console.log('[Shutdown] Encerrando processo.');
        process.exit(0);
     }
   });
   setTimeout(() => {
-    console.error('[Shutdown] Timeout! Forçando encerrando.');
+    console.error('[Shutdown] Timeout! Forçando encerramento.');
     process.exit(1);
   }, 10000);
 };

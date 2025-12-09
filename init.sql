@@ -23,6 +23,32 @@ CREATE TABLE Reservas (
     FOREIGN KEY (user_id) REFERENCES Usuarios(id)
 );
 
+-- Cria a tabela 'Eventos' (apenas admins podem criar)
+CREATE TABLE Eventos (
+    id VARCHAR(36) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    room_id VARCHAR(255) NOT NULL,
+    start_time DATETIME NOT NULL,
+    end_time DATETIME NOT NULL,
+    created_by VARCHAR(36) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_event_room_time (room_id, start_time),
+    FOREIGN KEY (created_by) REFERENCES Usuarios(id)
+);
+
+-- Cria a tabela 'Notificacoes' (mensagens para usuários)
+CREATE TABLE Notificacoes (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    message TEXT NOT NULL,
+    type ENUM('reservation_deleted', 'reservation_modified', 'event_created') NOT NULL,
+    related_id VARCHAR(36), -- ID da reserva/evento relacionado
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Usuarios(id)
+);
+
 /* --- INÍCIO: Criação do Utilizador da Aplicação --- */
 
 -- Cria o utilizador 'admin' com a senha 'admin_password_123'

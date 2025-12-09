@@ -55,3 +55,97 @@ Authorization: Bearer {{authToken}}
   "start_time": "2025-11-20T14:00:00",
   "end_time": "2025-11-20T15:00:00"
 }
+
+### 2B: Listar todas as reservas
+GET {{host}}/api/reservas
+Authorization: Bearer {{authToken}}
+
+### 2C: Deletar uma reserva (substitua o ID)
+DELETE {{host}}/api/reservas/COLOQUE_O_ID_AQUI
+Authorization: Bearer {{authToken}}
+
+# ===================================================
+#           ADMIN - CRIAR USUÁRIO ADMIN
+# ===================================================
+
+### 3A: Registrar um usuário ADMIN
+# @name registerAdmin
+POST {{host}}/api/users
+Content-Type: application/json
+
+{
+  "name": "Admin Master",
+  "email": "admin@exemplo.com",
+  "password": "admin123",
+  "role": "admin"
+}
+
+### 3B: Login como Admin
+# @name loginAdmin
+POST {{host}}/api/users/login
+Content-Type: application/json
+
+{
+  "email": "admin@exemplo.com",
+  "password": "admin123"
+}
+
+### <-- Salvar token do admin
+@adminToken = {{loginAdmin.response.body.token}}
+
+# ===================================================
+#           ADMIN - GERENCIAR RESERVAS
+# ===================================================
+
+### 4A: Admin atualiza uma reserva de cliente
+PUT {{host}}/api/reservas/COLOQUE_O_ID_AQUI
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "room_id": "sala_201",
+  "start_time": "2025-11-21T10:00:00",
+  "end_time": "2025-11-21T11:00:00"
+}
+
+### 4B: Admin deleta uma reserva de cliente
+DELETE {{host}}/api/reservas/COLOQUE_O_ID_AQUI
+Authorization: Bearer {{adminToken}}
+
+# ===================================================
+#           ADMIN - GERENCIAR EVENTOS
+# ===================================================
+
+### 5A: Admin cria um evento
+# @name createEvent
+POST {{host}}/api/eventos
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Reunião Geral",
+  "description": "Reunião mensal de todos os departamentos",
+  "room_id": "sala_auditorio",
+  "start_time": "2025-12-15T09:00:00",
+  "end_time": "2025-12-15T12:00:00"
+}
+
+### 5B: Listar todos os eventos
+GET {{host}}/api/eventos
+Authorization: Bearer {{authToken}}
+
+### 5C: Admin deleta um evento
+DELETE {{host}}/api/eventos/COLOQUE_O_ID_AQUI
+Authorization: Bearer {{adminToken}}
+
+# ===================================================
+#           NOTIFICAÇÕES
+# ===================================================
+
+### 6A: Cliente lista suas notificações
+GET {{host}}/api/notificacoes
+Authorization: Bearer {{authToken}}
+
+### 6B: Cliente marca notificação como lida
+PUT {{host}}/api/notificacoes/COLOQUE_O_ID_AQUI/lida
+Authorization: Bearer {{authToken}}
