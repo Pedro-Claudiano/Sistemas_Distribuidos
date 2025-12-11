@@ -6,34 +6,80 @@ const API_BASE_URL = '/api';
 export default function AdminReservations() {
   const navigate = useNavigate();
   const [reservas, setReservas] = useState([]);
+  const [salas, setSalas] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState(null);
   const [selectedReserva, setSelectedReserva] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(null); // null = verificando, true = autorizado, false = não autorizado
   const [editForm, setEditForm] = useState({
     room_id: '',
     start_time: '',
     end_time: ''
   });
 
+  // Verifica se o usuário é admin
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        setIsAuthorized(false);
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.role === 'admin') {
+          setIsAuthorized(true);
+        } else {
+          setIsAuthorized(false);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar token:', error);
+        setIsAuthorized(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
   const fetchReservas = useCallback(async () => {
     const token = localStorage.getItem('authToken');
     if (!token) {
-      navigate('/login');
+      setIsAuthorized(false);
       return;
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/reservas-detalhadas`, {
+      // Busca reservas
+      const reservasResponse = await fetch(`${API_BASE_URL}/reservas`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
-      if (!response.ok) throw new Error('Erro ao buscar reservas');
+      if (!reservasResponse.ok) throw new Error('Erro ao buscar reservas');
       
-      const data = await response.json();
-      setReservas(data);
+      const reservasData = await reservasResponse.json();
+
+      // Busca salas
+      const salasResponse = await fetch(`${API_BASE_URL}/salas`);
+      if (!salasResponse.ok) throw new Error('Erro ao buscar salas');
+      
+      const salasData = await salasResponse.json();
+      setSalas(salasData);
+
+      // Mapeia reservas com nomes das salas
+      const reservasComSalas = reservasData.map(reserva => {
+        const sala = salasData.find(s => s.id === reserva.room_id);
+        return {
+          ...reserva,
+          roomName: sala ? `${sala.name} (${sala.location})` : 'Sala não encontrada'
+        };
+      });
+
+      setReservas(reservasComSalas);
     } catch (error) {
       console.error('Erro ao buscar reservas:', error);
       setMessage({ type: 'error', text: 'Erro ao carregar reservas.' });
@@ -121,6 +167,50 @@ export default function AdminReservations() {
     const statusInfo = statusMap[status] || { text: status, class: 'status-default' };
     return <span className={`status-badge ${statusInfo.class}`}>{statusInfo.text}</span>;
   };
+
+  // Tela de carregamento
+  if (isAuthorized === null) {
+    return (
+      <>
+        <h1 className="app-logo">SIRESA</h1>
+        <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
+          <p>Verificando permissões...</p>
+        </div>
+      </>
+    );
+  }
+
+  // Tela de não autorizado
+  if (isAuthorized === false) {
+    return (
+      <>
+        <h1 className="app-logo">SIRESA</h1>
+        <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🚫</div>
+          <h2 className="form-title" style={{ color: '#e74c3c', marginBottom: '1rem' }}>Acesso Negado</h2>
+          <p style={{ marginBottom: '2rem', color: '#666' }}>
+            Você não tem permissão para acessar esta página.
+            <br />
+            Apenas administradores podem gerenciar reservas.
+          </p>
+          <button 
+            className="login-button" 
+            onClick={() => navigate('/dashboard')}
+            style={{ marginBottom: '1rem' }}
+          >
+            Ir para Dashboard
+          </button>
+          <br />
+          <button 
+            className="login-button cancel" 
+            onClick={() => navigate('/login')}
+          >
+            Fazer Login
+          </button>
+        </div>
+      </>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -271,7 +361,7 @@ export default function AdminReservations() {
               {reservas.map(reserva => (
                 <div key={reserva.id} className="reservation-card">
                   <div className="reservation-header">
-                    <h3>Sala {reserva.room_id}</h3>
+                    <h3>{reserva.roomName}</h3>
                     {getStatusBadge(reserva.status)}
                   </div>
                   
@@ -314,7 +404,7 @@ export default function AdminReservations() {
           <div className="modal-content">
             <h3>Propor Mudança de Reserva</h3>
             <p><strong>Cliente:</strong> {selectedReserva?.user_name}</p>
-            <p><strong>Reserva Atual:</strong> Sala {selectedReserva?.room_id}</p>
+            <p><strong>Reserva Atual:</strong> {selectedReserva?.roomName}</p>
             
             <form onSubmit={handleSubmitMudanca}>
               <div className="form-group">

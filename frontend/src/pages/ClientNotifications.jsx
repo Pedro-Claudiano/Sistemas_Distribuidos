@@ -9,15 +9,40 @@ export default function ClientNotifications() {
   const [notificacoes, setNotificacoes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(null); // null = verificando, true = autenticado, false = não autenticado
+
+  // Verifica se o usuário está autenticado e é cliente
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setIsAuthenticated(false);
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      // Admin não pode acessar notificações de clientes
+      if (payload.role === 'admin') {
+        setIsAuthenticated(false);
+        return;
+      }
+      setIsAuthenticated(true);
+    } catch (e) {
+      console.error('Erro ao decodificar token:', e);
+      setIsAuthenticated(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (isAuthenticated === true) {
+      fetchData();
+    }
+  }, [isAuthenticated]);
 
   const fetchData = async () => {
     const token = localStorage.getItem('authToken');
     if (!token) {
-      navigate('/login');
+      setIsAuthenticated(false);
       return;
     }
 
@@ -124,6 +149,75 @@ export default function ClientNotifications() {
     
     return `${hours}h ${minutes}m restante(s)`;
   };
+
+  // Tela de carregamento
+  if (isAuthenticated === null) {
+    return (
+      <>
+        <h1 className="app-logo">SIRESA</h1>
+        <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
+          <p>Verificando autenticação...</p>
+        </div>
+      </>
+    );
+  }
+
+  // Tela de não autenticado ou admin tentando acessar
+  if (isAuthenticated === false) {
+    const token = localStorage.getItem('authToken');
+    let isAdmin = false;
+    
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        isAdmin = payload.role === 'admin';
+      } catch (e) {
+        // Token inválido
+      }
+    }
+
+    return (
+      <>
+        <h1 className="app-logo">SIRESA</h1>
+        <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>{isAdmin ? '🚫' : '🔒'}</div>
+          <h2 className="form-title" style={{ color: '#e74c3c', marginBottom: '1rem' }}>
+            {isAdmin ? 'Acesso Negado' : 'Acesso Restrito'}
+          </h2>
+          <p style={{ marginBottom: '2rem', color: '#666' }}>
+            {isAdmin ? (
+              <>
+                Esta página é exclusiva para clientes.
+                <br />
+                Administradores devem usar o painel administrativo.
+              </>
+            ) : (
+              <>
+                Você precisa estar logado para ver suas notificações.
+                <br />
+                Faça login para continuar.
+              </>
+            )}
+          </p>
+          {isAdmin ? (
+            <button 
+              className="login-button" 
+              onClick={() => navigate('/admin')}
+            >
+              Ir para Painel Admin
+            </button>
+          ) : (
+            <button 
+              className="login-button" 
+              onClick={() => navigate('/login')}
+            >
+              Fazer Login
+            </button>
+          )}
+        </div>
+      </>
+    );
+  }
 
   if (isLoading) {
     return (

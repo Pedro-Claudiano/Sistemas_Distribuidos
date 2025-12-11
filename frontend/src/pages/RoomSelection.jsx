@@ -452,7 +452,7 @@ export default function RoomSelection() {
       <h1 className="app-logo">SIRESA</h1>
 
       <div className="page-user-actions">
-        <span className="welcome-message">Dashboard do Cliente</span>
+        
         <div className="user-actions">
           <button 
             onClick={() => navigate('/notifications')} 
