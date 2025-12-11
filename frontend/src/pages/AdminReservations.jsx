@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE_URL = '/api';
@@ -16,11 +16,7 @@ export default function AdminReservations() {
     end_time: ''
   });
 
-  useEffect(() => {
-    fetchReservas();
-  }, []);
-
-  const fetchReservas = async () => {
+  const fetchReservas = useCallback(async () => {
     const token = localStorage.getItem('authToken');
     if (!token) {
       navigate('/login');
@@ -44,7 +40,11 @@ export default function AdminReservations() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    fetchReservas();
+  }, [fetchReservas]);
 
   const handleCancelReserva = async (reservaId) => {
     if (!window.confirm('Tem certeza que deseja cancelar esta reserva?')) return;
@@ -141,6 +141,13 @@ export default function AdminReservations() {
         <span className="welcome-message">Gerenciar Reservas</span>
         <div className="user-actions">
           <button 
+            onClick={() => navigate('/admin/salas')} 
+            className="header-icon" 
+            title="Gerenciar Salas"
+          >
+            <i className="material-symbols-rounded">meeting_room</i>
+          </button>
+          <button 
             onClick={() => navigate('/admin')} 
             className="header-icon" 
             title="Voltar ao Painel"
@@ -161,17 +168,104 @@ export default function AdminReservations() {
       </div>
 
       <div className="login-container admin-dashboard">
-        <h2 className="form-title">Reservas do Sistema</h2>
-        
+        <div className="admin-header">
+          <div className="header-content">
+            <h2 className="form-title">Painel Administrativo</h2>
+            <p className="header-subtitle">Gerencie reservas e salas do sistema</p>
+          </div>
+          <div className="quick-actions">
+            <button 
+              className="quick-action-btn primary"
+              onClick={() => navigate('/admin/salas')}
+              title="Criar Nova Sala"
+            >
+              <i className="material-symbols-rounded">add</i>
+              <span>Criar Sala</span>
+            </button>
+            <button 
+              className="quick-action-btn secondary"
+              onClick={() => window.location.reload()}
+              title="Atualizar Lista"
+            >
+              <i className="material-symbols-rounded">refresh</i>
+              <span>Atualizar</span>
+            </button>
+          </div>
+        </div>
+
         {message && (
           <div className={`form-message ${message.type}`} style={{ marginBottom: '1rem' }}>
             {message.text}
           </div>
         )}
 
+        <div className="stats-cards">
+          <div className="stat-card">
+            <div className="stat-icon confirmed">
+              <i className="material-symbols-rounded">check_circle</i>
+            </div>
+            <div className="stat-content">
+              <h3>{reservas.filter(r => r.status === 'confirmed').length}</h3>
+              <p>Confirmadas</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon pending">
+              <i className="material-symbols-rounded">schedule</i>
+            </div>
+            <div className="stat-content">
+              <h3>{reservas.filter(r => r.status === 'pending_approval').length}</h3>
+              <p>Pendentes</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon cancelled">
+              <i className="material-symbols-rounded">cancel</i>
+            </div>
+            <div className="stat-content">
+              <h3>{reservas.filter(r => r.status === 'cancelled').length}</h3>
+              <p>Canceladas</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon total">
+              <i className="material-symbols-rounded">event</i>
+            </div>
+            <div className="stat-content">
+              <h3>{reservas.length}</h3>
+              <p>Total</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="section-header">
+          <h3>Reservas Ativas</h3>
+          <div className="section-actions">
+            <button 
+              className="filter-btn active"
+              onClick={() => {/* Implementar filtro se necessário */}}
+            >
+              Todas
+            </button>
+          </div>
+        </div>
+
         <div className="reservations-list">
           {reservas.length === 0 ? (
-            <p style={{ textAlign: 'center', marginTop: '2rem' }}>Nenhuma reserva encontrada.</p>
+            <div className="empty-state">
+              <div className="empty-icon">
+                <i className="material-symbols-rounded">event_busy</i>
+              </div>
+              <h3>Nenhuma reserva encontrada</h3>
+              <p>Quando os clientes fizerem reservas, elas aparecerão aqui.</p>
+              <button 
+                className="quick-action-btn primary"
+                onClick={() => navigate('/admin/salas')}
+              >
+                <i className="material-symbols-rounded">add</i>
+                Criar Primeira Sala
+              </button>
+            </div>
           ) : (
             <div className="reservations-grid">
               {reservas.map(reserva => (
@@ -195,6 +289,7 @@ export default function AdminReservations() {
                       className="action-btn edit"
                       disabled={reserva.status === 'cancelled'}
                     >
+                      <i className="material-symbols-rounded">edit</i>
                       Propor Mudança
                     </button>
                     <button 
@@ -202,6 +297,7 @@ export default function AdminReservations() {
                       className="action-btn delete"
                       disabled={reserva.status === 'cancelled'}
                     >
+                      <i className="material-symbols-rounded">cancel</i>
                       Cancelar
                     </button>
                   </div>
@@ -269,19 +365,191 @@ export default function AdminReservations() {
       )}
 
       <style jsx>{`
+        .admin-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 2rem;
+          padding: 1.5rem;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 12px;
+          color: white;
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .header-content h2 {
+          margin: 0 0 0.5rem 0;
+          font-size: 1.8rem;
+          font-weight: 600;
+        }
+
+        .header-subtitle {
+          margin: 0;
+          opacity: 0.9;
+          font-size: 1rem;
+        }
+
+        .quick-actions {
+          display: flex;
+          gap: 1rem;
+        }
+
+        .quick-action-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1.5rem;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 500;
+          transition: all 0.3s ease;
+          text-decoration: none;
+        }
+
+        .quick-action-btn.primary {
+          background: #28a745;
+          color: white;
+          box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+
+        .quick-action-btn.primary:hover {
+          background: #218838;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+
+        .quick-action-btn.secondary {
+          background: rgba(255, 255, 255, 0.2);
+          color: white;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .quick-action-btn.secondary:hover {
+          background: rgba(255, 255, 255, 0.3);
+          transform: translateY(-2px);
+        }
+
+        .stats-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 1rem;
+          margin-bottom: 2rem;
+        }
+
+        .stat-card {
+          display: flex;
+          align-items: center;
+          padding: 1.5rem;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+          border-left: 4px solid #007bff;
+          transition: transform 0.2s ease;
+        }
+
+        .stat-card:hover {
+          transform: translateY(-2px);
+        }
+
+        .stat-icon {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 1rem;
+        }
+
+        .stat-icon.confirmed {
+          background: #d4edda;
+          color: #155724;
+        }
+
+        .stat-icon.pending {
+          background: #fff3cd;
+          color: #856404;
+        }
+
+        .stat-icon.cancelled {
+          background: #f8d7da;
+          color: #721c24;
+        }
+
+        .stat-icon.total {
+          background: #d1ecf1;
+          color: #0c5460;
+        }
+
+        .stat-content h3 {
+          margin: 0;
+          font-size: 2rem;
+          font-weight: 700;
+          color: #333;
+        }
+
+        .stat-content p {
+          margin: 0;
+          color: #666;
+          font-size: 0.9rem;
+        }
+
+        .section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1.5rem;
+          padding-bottom: 0.5rem;
+          border-bottom: 2px solid #f8f9fa;
+        }
+
+        .section-header h3 {
+          margin: 0;
+          color: #333;
+          font-size: 1.3rem;
+        }
+
+        .section-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .filter-btn {
+          padding: 0.5rem 1rem;
+          border: 1px solid #dee2e6;
+          background: white;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .filter-btn.active {
+          background: #007bff;
+          color: white;
+          border-color: #007bff;
+        }
+
         .reservations-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-          gap: 1rem;
+          gap: 1.5rem;
           margin-top: 1rem;
         }
 
         .reservation-card {
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          padding: 1rem;
+          border: none;
+          border-radius: 12px;
+          padding: 1.5rem;
           background: white;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+          transition: all 0.3s ease;
+          border-left: 4px solid #007bff;
+        }
+
+        .reservation-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
 
         .reservation-header {
@@ -296,13 +564,17 @@ export default function AdminReservations() {
         .reservation-header h3 {
           margin: 0;
           color: #333;
+          font-size: 1.2rem;
+          font-weight: 600;
         }
 
         .status-badge {
-          padding: 0.25rem 0.5rem;
-          border-radius: 4px;
-          font-size: 0.8rem;
-          font-weight: bold;
+          padding: 0.4rem 0.8rem;
+          border-radius: 20px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
 
         .status-confirmed {
@@ -334,22 +606,38 @@ export default function AdminReservations() {
         }
 
         .action-btn {
-          padding: 0.5rem 1rem;
+          padding: 0.6rem 1.2rem;
           border: none;
-          border-radius: 4px;
+          border-radius: 8px;
           cursor: pointer;
-          font-size: 0.8rem;
+          font-size: 0.85rem;
+          font-weight: 500;
           flex: 1;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.3rem;
         }
 
         .action-btn.edit {
-          background: #007bff;
+          background: linear-gradient(135deg, #007bff, #0056b3);
           color: white;
         }
 
+        .action-btn.edit:hover {
+          background: linear-gradient(135deg, #0056b3, #004085);
+          transform: translateY(-1px);
+        }
+
         .action-btn.delete {
-          background: #dc3545;
+          background: linear-gradient(135deg, #dc3545, #c82333);
           color: white;
+        }
+
+        .action-btn.delete:hover {
+          background: linear-gradient(135deg, #c82333, #a71e2a);
+          transform: translateY(-1px);
         }
 
         .action-btn:disabled {
@@ -399,6 +687,68 @@ export default function AdminReservations() {
           display: flex;
           gap: 1rem;
           margin-top: 1.5rem;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 3rem 2rem;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .empty-icon {
+          width: 80px;
+          height: 80px;
+          margin: 0 auto 1rem;
+          background: #f8f9fa;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #6c757d;
+        }
+
+        .empty-icon i {
+          font-size: 2.5rem;
+        }
+
+        .empty-state h3 {
+          margin: 0 0 0.5rem 0;
+          color: #333;
+          font-size: 1.3rem;
+        }
+
+        .empty-state p {
+          margin: 0 0 2rem 0;
+          color: #666;
+          font-size: 1rem;
+        }
+
+        @media (max-width: 768px) {
+          .admin-header {
+            flex-direction: column;
+            gap: 1rem;
+            text-align: center;
+          }
+
+          .quick-actions {
+            justify-content: center;
+          }
+
+          .stats-cards {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .reservations-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .section-header {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-start;
+          }
         }
       `}</style>
     </>

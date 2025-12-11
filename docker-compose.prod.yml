@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # SERVIÇO DE BACKEND - USUÁRIOS (Produção)
+  usuarios-service:
+    build: 
+      context: ./backend/servico-usuarios
+      dockerfile: Dockerfile
+    container_name: usuarios-service-prod
+    restart: unless-stopped
+    networks:
+      - sistema-reservas
+    environment:
+      NODE_ENV: production
+      NODE_PORT: 3000
+      DB_HOST: ${DB_HOST}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_PORT: ${DB_PORT}
+      JWT_SECRET: ${JWT_SECRET}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # SERVIÇO DE BACKEND - RESERVAS (Produção)
+  reservas-service:
+    build: 
+      context: ./backend/servico-reservas
+      dockerfile: Dockerfile
+    container_name: reservas-service-prod
+    restart: unless-stopped
+    networks:
+      - sistema-reservas
+    environment:
+      NODE_ENV: production
+      NODE_PORT: 3001
+      DB_HOST: ${DB_HOST}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_PORT: ${DB_PORT}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: ${REDIS_HOST}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # SERVIÇO DE FRONTEND (Produção)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+    container_name: frontend-prod
+    restart: unless-stopped
+    networks:
+      - sistema-reservas
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-certs:/etc/nginx/certs:ro
+    depends_on:
+      - usuarios-service
+      - reservas-service
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+# DEFINIÇÃO DA REDE
+networks:
+  sistema-reservas:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -4,15 +4,15 @@ import { useNavigate } from 'react-router-dom';
 const API_BASE_URL = '/api';
 
 const allTimeSlots = [
-  { label: '08:00 - 08:50', start: '08:00:00', end: '08:50:00' },
-  { label: '08:50 - 09:40', start: '08:50:00', end: '09:40:00' },
-  { label: '09:40 - 10:30', start: '09:40:00', end: '10:30:00' },
-  { label: '10:50 - 11:40', start: '10:50:00', end: '11:40:00' },
-  { label: '11:40 - 12:30', start: '11:40:00', end: '12:30:00' },
-  { label: '13:50 - 14:40', start: '13:50:00', end: '14:40:00' },
-  { label: '14:40 - 15:30', start: '14:40:00', end: '15:30:00' },
-  { label: '15:50 - 16:40', start: '15:50:00', end: '16:40:00' },
-  { label: '16:40 - 17:30', start: '16:40:00', end: '17:30:00' },
+  { label: '08:00 - 08:50', start: '08:00:00', end: '08:50:00', period: 'Manhã', icon: '🌅' },
+  { label: '08:50 - 09:40', start: '08:50:00', end: '09:40:00', period: 'Manhã', icon: '🌅' },
+  { label: '09:40 - 10:30', start: '09:40:00', end: '10:30:00', period: 'Manhã', icon: '🌅' },
+  { label: '10:50 - 11:40', start: '10:50:00', end: '11:40:00', period: 'Manhã', icon: '☀️' },
+  { label: '11:40 - 12:30', start: '11:40:00', end: '12:30:00', period: 'Manhã', icon: '☀️' },
+  { label: '13:50 - 14:40', start: '13:50:00', end: '14:40:00', period: 'Tarde', icon: '🌞' },
+  { label: '14:40 - 15:30', start: '14:40:00', end: '15:30:00', period: 'Tarde', icon: '🌞' },
+  { label: '15:50 - 16:40', start: '15:50:00', end: '16:40:00', period: 'Tarde', icon: '🌇' },
+  { label: '16:40 - 17:30', start: '16:40:00', end: '17:30:00', period: 'Tarde', icon: '🌇' },
 ];
 
 // Pega data atual YYYY-MM-DD sem conversão de fuso
@@ -33,7 +33,7 @@ const formatDateDisplay = (dateString) => {
 
 export default function RoomSelection() {
   const [rooms, setRooms] = useState([]);
-  const [userName, setUserName] = useState("Usuário");
+  const [, setUserName] = useState("Usuário");
   
   const [selectedRoom, setSelectedRoom] = useState('');
   
@@ -471,187 +471,254 @@ export default function RoomSelection() {
       </div>
 
       {/* --- NOVA RESERVA / EDIÇÃO --- */}
-      <div className="login-container admin-dashboard" style={{ marginBottom: '2rem' }}>
-        <h2 className="form-title">
-            {isEditing ? 'Editar Reserva' : 'Reservar Sala'}
-        </h2>
-        <p className="separator"><span>
-            {isEditing ? 'Altere os dados da reserva' : 'Selecione sala, datas e horário'}
-        </span></p>
+      <div className="reservation-wizard">
+        <div className="wizard-header">
+          <h2 className="wizard-title">
+            {isEditing ? '✏️ Editar Reserva' : '🏢 Nova Reserva'}
+          </h2>
+          <p className="wizard-subtitle">
+            {isEditing ? 'Altere os dados da sua reserva' : 'Reserve sua sala em 3 passos simples'}
+          </p>
+        </div>
 
-        <form className="login-form" onSubmit={handleConfirmClick}>
-          
-          {/* SALA */}
-          <div className="input-wrapper">
-            <select
-              className="input-field select-field"
-              value={selectedRoom}
-              onChange={(e) => setSelectedRoom(e.target.value)}
-              disabled={isLoading}
-              required
-            >
-              <option value="" disabled>Selecione a sala...</option>
-              {rooms.map((room) => (
-                <option key={room.id} value={room.id}>
-                  {room.name} ({room.location})
-                </option>
-              ))}
-            </select>
-            <i className="material-symbols-rounded">meeting_room</i>
+        {/* PASSO 1: SELEÇÃO DE SALA */}
+        <div className="wizard-step">
+          <div className="step-header">
+            <span className="step-number">1</span>
+            <h3>Escolha a Sala</h3>
           </div>
+          
+          <div className="rooms-grid">
+            {rooms.map((room) => (
+              <div 
+                key={room.id} 
+                className={`room-card ${selectedRoom === room.id ? 'selected' : ''}`}
+                onClick={() => setSelectedRoom(room.id)}
+              >
+                <div className="room-icon">🏢</div>
+                <div className="room-info">
+                  <h4>{room.name}</h4>
+                  <p>{room.location}</p>
+                </div>
+                {selectedRoom === room.id && (
+                  <div className="selected-indicator">✓</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
 
-          {/* DATA (Com Múltipla Seleção) */}
-          <div className="date-selection-container">
-              <div className="input-wrapper" style={{ marginBottom: isEditing ? '1.5rem' : '0.5rem' }}>
+        {/* PASSO 2: SELEÇÃO DE DATA */}
+        {selectedRoom && (
+          <div className="wizard-step">
+            <div className="step-header">
+              <span className="step-number">2</span>
+              <h3>Selecione a Data</h3>
+            </div>
+            
+            <div className="date-picker-container">
+              <div className="date-input-wrapper">
                 <input
                   type="date"
-                  className="input-field"
+                  className="modern-date-input"
                   value={tempDate}
                   min={getTodayString()} 
                   onChange={(e) => setTempDate(e.target.value)}
                   disabled={isLoading}
-                  // CORREÇÃO: Força abrir calendário ao clicar
-                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
                 />
-                <i className="material-symbols-rounded">calendar_month</i>
                 
-                {/* Botão + (Só aparece se NÃO estiver editando) */}
                 {!isEditing && (
-                    <button 
-                        type="button" 
-                        className="add-date-btn"
-                        onClick={handleAddDate}
-                        disabled={!tempDate || isLoading}
-                    >
-                        <i className="material-symbols-rounded">add</i>
-                    </button>
+                  <button 
+                    type="button" 
+                    className="add-date-button"
+                    onClick={handleAddDate}
+                    disabled={!tempDate || isLoading}
+                  >
+                    <i className="material-symbols-rounded">add</i>
+                    Adicionar Data
+                  </button>
                 )}
               </div>
 
-              {/* Lista de Datas Selecionadas */}
+              {/* Datas Selecionadas */}
               {!isEditing && selectedDates.length > 0 && (
-                  <div className="selected-dates-list">
-                      {selectedDates.map(date => (
-                          <span key={date} className="date-tag">
-                              {/* Usa formatação segura */}
-                              {formatDateDisplay(date)}
-                              <i 
-                                className="material-symbols-rounded remove-date-icon"
-                                onClick={() => handleRemoveDate(date)}
-                              >close</i>
-                          </span>
-                      ))}
+                <div className="selected-dates-container">
+                  <h4>📅 Datas Selecionadas:</h4>
+                  <div className="dates-list">
+                    {selectedDates.map(date => (
+                      <div key={date} className="date-chip">
+                        <span>{formatDateDisplay(date)}</span>
+                        <button 
+                          type="button"
+                          onClick={() => handleRemoveDate(date)}
+                          className="remove-date-btn"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
                   </div>
-              )}
-               {!isEditing && selectedDates.length === 0 && (
-                  <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem', textAlign: 'center' }}>
-                    Selecione uma data e clique no <b>+</b> para adicionar.
-                  </p>
-              )}
-          </div>
-
-          {/* HORÁRIO */}
-          <div className="input-wrapper">
-            <select
-              className="input-field select-field"
-              value={selectedTime}
-              onChange={(e) => setSelectedTime(e.target.value)}
-              disabled={!selectedRoom || (!isEditing && selectedDates.length === 0) || isSlotsLoading || isLoading}
-              required
-            >
-              <option value="" disabled>
-                {isSlotsLoading ? "Verificando disponibilidade..." : "Selecione o horário..."}
-              </option>
-              
-              {!isSlotsLoading && availableSlots.length > 0 && (
-                availableSlots.map((slot) => (
-                  <option key={slot.label} value={slot.label}>
-                    {slot.label}
-                  </option>
-                ))
+                </div>
               )}
 
-              {!isSlotsLoading && availableSlots.length === 0 && selectedRoom && (
-                <option value="" disabled>Nenhum horário disponível</option>
+              {!isEditing && selectedDates.length === 0 && (
+                <div className="empty-dates-message">
+                  <i className="material-symbols-rounded">event</i>
+                  <p>Selecione uma ou mais datas para sua reserva</p>
+                </div>
               )}
-            </select>
-            <i className="material-symbols-rounded">schedule</i>
-          </div>
-
-          {message && (
-            <div className={`form-message ${message.type}`}>
-              {message.text}
             </div>
-          )}
-
-          <div style={{ display: 'flex', gap: '10px' }}>
-              {isEditing && (
-                  <button 
-                    type="button" 
-                    className="login-button cancel" 
-                    onClick={handleCancelEdit}
-                    disabled={isLoading}
-                  >
-                      Cancelar
-                  </button>
-              )}
-              <button
-                type="submit"
-                className="login-button"
-                disabled={!selectedTime || (!isEditing && selectedDates.length === 0) || isLoading}
-              >
-                {isLoading ? "Salvando..." : (isEditing ? 'Salvar Alteração' : 'Confirmar Reservas')}
-              </button>
           </div>
-        </form>
+        )}
+
+        {/* PASSO 3: SELEÇÃO DE HORÁRIO */}
+        {selectedRoom && (isEditing || selectedDates.length > 0) && (
+          <div className="wizard-step">
+            <div className="step-header">
+              <span className="step-number">3</span>
+              <h3>Escolha o Horário</h3>
+            </div>
+            
+            {isSlotsLoading ? (
+              <div className="loading-slots">
+                <div className="loading-spinner"></div>
+                <p>Verificando disponibilidade...</p>
+              </div>
+            ) : (
+              <div className="time-slots-grid">
+                {availableSlots.length === 0 ? (
+                  <div className="no-slots-message">
+                    <i className="material-symbols-rounded">schedule_send</i>
+                    <p>Nenhum horário disponível para esta data</p>
+                  </div>
+                ) : (
+                  availableSlots.map((slot) => (
+                    <div 
+                      key={slot.label} 
+                      className={`time-slot-card ${selectedTime === slot.label ? 'selected' : ''}`}
+                      onClick={() => setSelectedTime(slot.label)}
+                    >
+                      <div className="time-icon">
+                        {allTimeSlots.find(s => s.label === slot.label)?.icon || '⏰'}
+                      </div>
+                      <div className="time-info">
+                        <span className="time-label">{slot.label}</span>
+                        <span className="time-period">
+                          {allTimeSlots.find(s => s.label === slot.label)?.period || 'Horário'}
+                        </span>
+                      </div>
+                      {selectedTime === slot.label && (
+                        <div className="selected-indicator">✓</div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MENSAGENS E AÇÕES */}
+        {message && (
+          <div className={`wizard-message ${message.type}`}>
+            <i className="material-symbols-rounded">
+              {message.type === 'success' ? 'check_circle' : 'error'}
+            </i>
+            {message.text}
+          </div>
+        )}
+
+        {/* BOTÕES DE AÇÃO */}
+        {selectedRoom && (isEditing || selectedDates.length > 0) && selectedTime && (
+          <div className="wizard-actions">
+            {isEditing && (
+              <button 
+                type="button" 
+                className="wizard-button secondary" 
+                onClick={handleCancelEdit}
+                disabled={isLoading}
+              >
+                <i className="material-symbols-rounded">close</i>
+                Cancelar
+              </button>
+            )}
+            <button
+              type="button"
+              className="wizard-button primary"
+              onClick={handleConfirmClick}
+              disabled={isLoading}
+            >
+              <i className="material-symbols-rounded">
+                {isLoading ? 'hourglass_empty' : (isEditing ? 'save' : 'event_available')}
+              </i>
+              {isLoading ? "Processando..." : (isEditing ? 'Salvar Alterações' : `Confirmar ${selectedDates.length || 1} Reserva(s)`)}
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* --- LISTA DE RESERVAS --- */}
-      <div className="login-container admin-dashboard">
-        <h2 className="form-title" style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Minhas Reservas</h2>
-        
-        <div className="room-list">
-            {myReservas.length === 0 ? (
-                <p style={{ textAlign: 'center', color: '#666' }}>Você ainda não tem reservas.</p>
-            ) : (
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Sala</th>
-                            <th>Prédio</th>
-                            <th>Data</th>
-                            <th>Horário</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {myReservas.map(reserva => (
-                            <tr key={reserva.id} style={editingReservaId === reserva.id ? { backgroundColor: '#f0f8ff' } : {}}>
-                                <td>{reserva.roomName}</td>
-                                <td>{reserva.roomLocation}</td>
-                                <td>{formatDateDisplay(reserva.date)}</td>
-                                <td>{reserva.time}</td>
-                                <td className="room-actions">
-                                    <button 
-                                        onClick={() => handleEditReserva(reserva)} 
-                                        className="action-btn edit"
-                                        disabled={isEditing}
-                                    >
-                                        Editar
-                                    </button>
-                                    <button 
-                                        onClick={() => handleDeleteReserva(reserva.id)} 
-                                        className="action-btn delete"
-                                    >
-                                        Cancelar
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            )}
+      {/* --- MINHAS RESERVAS --- */}
+      <div className="my-reservations-section">
+        <div className="section-header">
+          <h2>📋 Minhas Reservas</h2>
+          <p>Gerencie suas reservas ativas</p>
         </div>
+        
+        {myReservas.length === 0 ? (
+          <div className="empty-reservations">
+            <div className="empty-icon">📅</div>
+            <h3>Nenhuma reserva encontrada</h3>
+            <p>Você ainda não fez nenhuma reserva. Use o formulário acima para reservar uma sala!</p>
+          </div>
+        ) : (
+          <div className="reservations-grid">
+            {myReservas.map(reserva => (
+              <div 
+                key={reserva.id} 
+                className={`reservation-card ${editingReservaId === reserva.id ? 'editing' : ''}`}
+              >
+                <div className="reservation-header">
+                  <div className="room-info">
+                    <h4>🏢 {reserva.roomName}</h4>
+                    <p>📍 {reserva.roomLocation}</p>
+                  </div>
+                  {editingReservaId === reserva.id && (
+                    <div className="editing-badge">✏️ Editando</div>
+                  )}
+                </div>
+                
+                <div className="reservation-details">
+                  <div className="detail-item">
+                    <i className="material-symbols-rounded">calendar_today</i>
+                    <span>{formatDateDisplay(reserva.date)}</span>
+                  </div>
+                  <div className="detail-item">
+                    <i className="material-symbols-rounded">schedule</i>
+                    <span>{reserva.time}</span>
+                  </div>
+                </div>
+                
+                <div className="reservation-actions">
+                  <button 
+                    onClick={() => handleEditReserva(reserva)} 
+                    className="action-button edit"
+                    disabled={isEditing}
+                  >
+                    <i className="material-symbols-rounded">edit</i>
+                    Editar
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteReserva(reserva.id)} 
+                    className="action-button delete"
+                  >
+                    <i className="material-symbols-rounded">cancel</i>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

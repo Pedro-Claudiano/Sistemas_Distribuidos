@@ -16,6 +16,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/users', usersRouter);
+app.use('/api/usuarios', usersRouter);
 
 app.get('/health', async (req, res) => {
   const healthData = {

@@ -1,331 +1,506 @@
-# 🏢 Sistema de Reservas Distribuído
+# 🚀 Sistema de Reserva de Salas - AWS Free Tier
 
-Sistema profissional de gerenciamento de reservas com arquitetura de microserviços, diferenciação de permissões Admin/Cliente, notificações automáticas e replicação de banco de dados.
+## ✨ Deploy Automático Distribuído
 
-## ✅ STATUS: 100% FUNCIONAL
+**Sua aplicação rodando 100% na nuvem AWS com arquitetura de microserviços!**
 
-Todos os componentes implementados, testados e validados. Ver [STATUS_SISTEMA_COMPLETO.md](STATUS_SISTEMA_COMPLETO.md) para detalhes.
+### 🏗️ Arquitetura Distribuída (Free Tier)
+- **5 Containers ECS Fargate**: Frontend, APIs, Redis, RabbitMQ
+- **RDS MySQL**: Banco de dados gerenciado (db.t3.micro)
+- **ECR**: Repositórios de imagens Docker
+- **CloudWatch**: Logs centralizados
+- **💰 Custo**: $0 (Free Tier por 12 meses)
 
-## 🎯 Funcionalidades Principais
+## 🚀 Deploy em 1 Comando
 
-### Admin
-- ✅ Controle total sobre reservas (criar, modificar, deletar)
-- ✅ Criar e gerenciar eventos
-- ✅ Visualizar todas as reservas do sistema
-- ✅ Notificar automaticamente clientes afetados por mudanças
-
-### Cliente
-- ✅ Criar reservas em horários disponíveis
-- ✅ Visualizar apenas suas próprias reservas
-- ✅ Receber notificações de mudanças
-- ✅ Ver eventos criados por admins
-- ✅ Marcar notificações como lidas
-
-## 🏗️ Arquitetura
-
-```
-┌─────────────────────────────────────────────────┐
-│    Nginx HTTPS (SSL) - Ports 80→443, 443       │
-└────────────┬────────────────────────────────────┘
-             │
-    ┌────────┴────────┐
-    │                 │
-┌───▼────┐      ┌────▼─────┐      ┌──────────┐
-│  Auth  │      │Reservations│      │ Frontend │
-│Service │      │  Service   │      │  (React) │
-│ :3000  │      │   :3001    │      │  (Nginx) │
-└───┬────┘      └────┬───────┘      └──────────┘
-    │                │
-    │    ┌───────────┴──────────┐
-    │    │                      │
-┌───▼────▼───┐  ┌──────┐  ┌────▼────┐
-│   MySQL    │  │Redis │  │RabbitMQ │
-│Primary:3307│  │:6379 │  │:5672    │
-│Second:3308 │  │Locks │  │Messages │
-└────────────┘  └──────┘  └─────────┘
-```
-
-## 🚀 Quick Start
-
-### Pré-requisitos
-- Docker Desktop instalado e rodando
-- PowerShell (Windows)
-- 8GB RAM disponível
-
-```
-
-### Ou Manualmente
+### Windows (PowerShell):
 ```powershell
-# 1. Iniciar containers
-docker-compose up -d
-
-# 2. Aguardar inicialização (15 segundos)
-timeout /t 15
-
-# 3. Configurar replicação MySQL
-powershell -ExecutionPolicy Bypass -File scripts/setup-replication-simple.ps1
-
-# 4. Acessar sistema
-# https://localhost
+.\deploy-completo.ps1
 ```
 
-### Testar Sistema
-```powershell
-# Executar todos os testes
-powershell -ExecutionPolicy Bypass -File scripts/test-all.ps1
-
-# Ou testes individuais
-powershell -ExecutionPolicy Bypass -File scripts/test-https.ps1
-powershell -ExecutionPolicy Bypass -File scripts/test-permissions.ps1
-powershell -ExecutionPolicy Bypass -File scripts/test-concurrent.ps1
-powershell -ExecutionPolicy Bypass -File scripts/test-replication.ps1
+### Linux/Mac (Bash):
+```bash
+./deploy-completo.sh
 ```
 
-### Testar API Manualmente
-Use o arquivo `testes.http` com REST Client ou Postman.
+**Pronto! Em 15 minutos sua aplicação estará rodando na AWS de forma distribuída.**
 
-## 📚 Documentação
+## 📋 Pré-requisitos
 
-- **[GUIA_FINAL_COMPLETO.md](GUIA_FINAL_COMPLETO.md)** - Guia completo do sistema
-- **[docs/AWS_DEPLOYMENT_PROFESSIONAL.md](docs/AWS_DEPLOYMENT_PROFESSIONAL.md)** - Deploy na AWS
-- **[FUNCIONALIDADES_ADMIN.md](FUNCIONALIDADES_ADMIN.md)** - Funcionalidades detalhadas
-- **[TESTE_NOTIFICACOES.md](TESTE_NOTIFICACOES.md)** - Guia de testes
+1. **AWS CLI configurado**:
+```bash
+aws configure
+```
 
-## 🛠️ Tecnologias
+2. **Docker Desktop rodando**
 
-- **Backend**: Node.js + Express
-- **Database**: MySQL 8.0 (Primary + Read Replica)
-- **Cache**: Redis 7
-- **Mensageria**: RabbitMQ 3.11
-- **Frontend**: React + Vite
-- **Proxy**: Nginx
-- **Containerização**: Docker + Docker Compose
+3. **Conta AWS** (Free Tier suficiente)
 
-## 📊 Endpoints Principais
+## 🎯 O que será criado automaticamente
 
-### Autenticação
-- `POST /api/users` - Criar usuário
-- `POST /api/users/login` - Login
-- `GET /api/users` - Listar usuários (Admin)
+### Infraestrutura AWS:
+```
+Internet → Frontend (ECS) → APIs (ECS) → RDS MySQL
+                    ↓
+            Redis (ECS) + RabbitMQ (ECS)
+```
 
-### Reservas
-- `POST /api/reservas` - Criar reserva
-- `GET /api/reservas` - Listar reservas
-- `PUT /api/reservas/:id` - Atualizar reserva (Admin)
-- `DELETE /api/reservas/:id` - Deletar reserva
+### 5 Containers ECS Fargate:
+- **Frontend**: React + Nginx (porta 80/443)
+- **API Usuários**: Node.js (porta 3000)
+- **API Reservas**: Node.js (porta 3001)
+- **Redis**: Cache distribuído (porta 6379)
+- **RabbitMQ**: Mensageria (porta 5672/15672)
 
-### Eventos
-- `POST /api/eventos` - Criar evento (Admin)
-- `GET /api/eventos` - Listar eventos
-- `DELETE /api/eventos/:id` - Deletar evento (Admin)
+### Recursos AWS:
+- **RDS MySQL**: db.t3.micro, 20GB (Free Tier)
+- **ECR**: 5 repositórios de imagens
+- **CloudWatch**: Logs de todos os serviços
+- **IAM**: Roles para ECS
 
-### Notificações
-- `GET /api/notificacoes` - Listar notificações
-- `PUT /api/notificacoes/:id/lida` - Marcar como lida
+## 📱 Scripts Disponíveis
+
+### Deploy Completo:
+```bash
+# Windows
+.\deploy-completo.ps1
+
+# Linux/Mac  
+./deploy-completo.sh
+```
+
+### Verificar Status:
+```bash
+# Windows
+.\check-aws-status.ps1
+
+# Linux/Mac
+./check-aws-status.sh
+```
+
+### Limpar Recursos:
+```bash
+# Windows
+.\cleanup-aws.ps1
+
+# Linux/Mac
+./cleanup-aws.sh
+```
+
+## 🔧 Deploy Manual (Passo a Passo)
+
+Se preferir executar manualmente:
+docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/sistema-reservas/frontend:latest
+```
+
+### 2. Criar Infraestrutura de Dados
+
+#### RDS MySQL (Multi-AZ)
+```bash
+aws rds create-db-instance \
+  --db-instance-identifier sistema-reservas-db \
+  --db-instance-class db.t3.micro \
+  --engine mysql \
+  --engine-version 8.0 \
+  --master-username admin \
+  --master-user-password <senha-segura> \
+  --allocated-storage 20 \
+  --vpc-security-group-ids sg-xxxxxxxxx \
+  --db-subnet-group-name default \
+  --multi-az \
+  --backup-retention-period 7 \
+  --storage-encrypted
+```
+
+#### ElastiCache Redis
+```bash
+aws elasticache create-cache-cluster \
+  --cache-cluster-id sistema-reservas-redis \
+  --cache-node-type cache.t3.micro \
+  --engine redis \
+  --num-cache-nodes 1 \
+  --security-group-ids sg-xxxxxxxxx
+```
+
+#### Amazon MQ (RabbitMQ)
+```bash
+aws mq create-broker \
+  --broker-name sistema-reservas-mq \
+  --engine-type RabbitMQ \
+  --engine-version 3.9.16 \
+  --host-instance-type mq.t3.micro \
+  --users Username=admin,Password=<senha-segura> \
+  --deployment-mode SINGLE_INSTANCE \
+  --security-groups sg-xxxxxxxxx \
+  --subnet-ids subnet-xxxxxxxxx
+```
+
+### 3. Configurar ECS Cluster
+
+#### Criar Cluster
+```bash
+aws ecs create-cluster --cluster-name sistema-reservas-cluster
+```
+
+#### Task Definitions
+
+**usuarios-service-task.json**:
+```json
+{
+  "family": "usuarios-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<account-id>:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "usuarios-service",
+      "image": "<account-id>.dkr.ecr.us-east-1.amazonaws.com/sistema-reservas/usuarios-service:latest",
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "NODE_PORT", "value": "3000"},
+        {"name": "DB_HOST", "value": "<rds-endpoint>"},
+        {"name": "DB_USER", "value": "admin"},
+        {"name": "DB_PASSWORD", "value": "<senha-db>"},
+        {"name": "DB_NAME", "value": "sistema_reservas"},
+        {"name": "JWT_SECRET", "value": "<jwt-secret>"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/usuarios-service",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
+```
+
+**reservas-service-task.json**:
+```json
+{
+  "family": "reservas-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<account-id>:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "reservas-service",
+      "image": "<account-id>.dkr.ecr.us-east-1.amazonaws.com/sistema-reservas/reservas-service:latest",
+      "portMappings": [
+        {
+          "containerPort": 3001,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "NODE_PORT", "value": "3001"},
+        {"name": "DB_HOST", "value": "<rds-endpoint>"},
+        {"name": "DB_USER", "value": "admin"},
+        {"name": "DB_PASSWORD", "value": "<senha-db>"},
+        {"name": "DB_NAME", "value": "sistema_reservas"},
+        {"name": "JWT_SECRET", "value": "<jwt-secret>"},
+        {"name": "REDIS_HOST", "value": "<redis-endpoint>"},
+        {"name": "RABBITMQ_HOST", "value": "<mq-endpoint>"},
+        {"name": "RABBITMQ_USER", "value": "admin"},
+        {"name": "RABBITMQ_PASS", "value": "<senha-mq>"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/reservas-service",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
+```
+
+#### Registrar Task Definitions
+```bash
+aws ecs register-task-definition --cli-input-json file://usuarios-service-task.json
+aws ecs register-task-definition --cli-input-json file://reservas-service-task.json
+```
+
+### 4. Criar Services ECS
+
+```bash
+# Service usuarios-service
+aws ecs create-service \
+  --cluster sistema-reservas-cluster \
+  --service-name usuarios-service \
+  --task-definition usuarios-service \
+  --desired-count 2 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-xxxxxxxxx,subnet-yyyyyyyyy],securityGroups=[sg-xxxxxxxxx],assignPublicIp=ENABLED}"
+
+# Service reservas-service  
+aws ecs create-service \
+  --cluster sistema-reservas-cluster \
+  --service-name reservas-service \
+  --task-definition reservas-service \
+  --desired-count 2 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-xxxxxxxxx,subnet-yyyyyyyyy],securityGroups=[sg-xxxxxxxxx],assignPublicIp=ENABLED}"
+```
+
+### 5. Configurar Application Load Balancer
+
+```bash
+# Criar ALB
+aws elbv2 create-load-balancer \
+  --name sistema-reservas-alb \
+  --subnets subnet-xxxxxxxxx subnet-yyyyyyyyy \
+  --security-groups sg-xxxxxxxxx
+
+# Criar Target Groups
+aws elbv2 create-target-group \
+  --name usuarios-service-tg \
+  --protocol HTTP \
+  --port 3000 \
+  --vpc-id vpc-xxxxxxxxx \
+  --target-type ip \
+  --health-check-path /health
+
+aws elbv2 create-target-group \
+  --name reservas-service-tg \
+  --protocol HTTP \
+  --port 3001 \
+  --vpc-id vpc-xxxxxxxxx \
+  --target-type ip \
+  --health-check-path /health
+
+# Criar Listeners com regras de roteamento
+aws elbv2 create-listener \
+  --load-balancer-arn <alb-arn> \
+  --protocol HTTPS \
+  --port 443 \
+  --certificates CertificateArn=<certificate-arn> \
+  --default-actions Type=forward,TargetGroupArn=<frontend-tg-arn>
+```
+
+### 6. Deploy Frontend (S3 + CloudFront)
+
+```bash
+# Build do frontend
+cd frontend
+npm run build
+
+# Upload para S3
+aws s3 sync dist/ s3://sistema-reservas-frontend-bucket --delete
+
+# Criar distribuição CloudFront
+aws cloudfront create-distribution --distribution-config file://cloudfront-config.json
+```
+
+### 7. Configurar DNS (Route 53)
+
+```bash
+# Criar hosted zone
+aws route53 create-hosted-zone --name sistema-reservas.com --caller-reference $(date +%s)
+
+# Criar records apontando para ALB e CloudFront
+aws route53 change-resource-record-sets --hosted-zone-id <zone-id> --change-batch file://dns-records.json
+```
+
+## 🔧 Configurações de Ambiente
+
+### Variáveis de Ambiente AWS
+```bash
+export AWS_REGION=us-east-1
+export DB_ENDPOINT=<rds-endpoint>
+export REDIS_ENDPOINT=<redis-endpoint>  
+export MQ_ENDPOINT=<mq-endpoint>
+export JWT_SECRET=<jwt-secret-seguro>
+```
+
+## 📊 Monitoramento
+
+### CloudWatch Logs
+- `/ecs/usuarios-service`
+- `/ecs/reservas-service`
+
+### CloudWatch Metrics
+- ECS Service CPU/Memory
+- RDS Connections/Performance
+- ALB Request Count/Latency
+- ElastiCache Hit Rate
 
 ## 🔒 Segurança
 
-- JWT com expiração de 1 hora
-- Bcrypt para hash de senhas
-- RBAC (Role-Based Access Control)
-- HTTPS via Nginx
-- Prepared statements (SQL injection protection)
+### Security Groups
+- **ALB-SG**: 80,443 from 0.0.0.0/0
+- **ECS-SG**: 3000,3001 from ALB-SG
+- **RDS-SG**: 3306 from ECS-SG
+- **Redis-SG**: 6379 from ECS-SG
+- **MQ-SG**: 5672 from ECS-SG
 
-## 📈 Monitoramento
+### IAM Roles
+- **ecsTaskExecutionRole**: ECR, CloudWatch Logs
+- **ecsTaskRole**: RDS, ElastiCache, MQ access
 
-### RabbitMQ Management
-- URL: http://localhost:15672
-- User: admin
-- Pass: admin123
+## 🚀 Comandos de Deploy Rápido
 
-### Logs
 ```bash
-# Ver todos os logs
-docker-compose logs -f
-
-# Ver logs de um serviço
-docker logs -f reservas-service
+# Script completo de deploy
+./deploy-aws.sh
 ```
 
-## 🌐 Deploy na AWS
+## 📈 Escalabilidade
 
-Sistema preparado para deploy profissional na AWS com:
-- ECS Fargate (containers serverless)
-- RDS MySQL (database gerenciado)
-- ElastiCache Redis (cache distribuído)
-- Amazon MQ (RabbitMQ gerenciado)
-- Application Load Balancer
-- CloudWatch (monitoring)
-
-**Custo estimado**: ~$190/mês (produção 24/7)
-
-Ver [docs/AWS_DEPLOYMENT_PROFESSIONAL.md](docs/AWS_DEPLOYMENT_PROFESSIONAL.md) para guia completo.
-
-## 🧪 Testes Automatizados
-
-Todos os testes passando ✅
-
-| Teste | Descrição | Status |
-|-------|-----------|--------|
-| HTTPS | Certificado SSL, redirecionamento | ✅ PASS |
-| Autenticação | JWT, registro, login | ✅ PASS |
-| RBAC | Permissões admin/cliente | ✅ PASS |
-| Reservas | CRUD com lock distribuído | ✅ PASS |
-| Eventos | Criação e notificações | ✅ PASS |
-| Notificações | RabbitMQ, persistência | ✅ PASS |
-| Replicação | MySQL Primary→Secondary | ✅ PASS |
-| Lock Distribuído | Redis, race conditions | ✅ PASS |
-
-## 📝 Estrutura do Projeto
-
-```
-.
-├── backend/
-│   ├── servico-usuarios/      # Serviço de autenticação
-│   └── servico-reservas/      # Serviço de reservas
-├── frontend/                  # Interface React (futuro)
-├── mysql-config/              # Configurações MySQL
-│   ├── primary/               # MySQL Primary
-│   └── secondary/             # MySQL Secondary (réplica)
-├── nginx-certs/               # Certificados SSL
-├── scripts/                   # Scripts de teste e setup
-│   ├── start-system.ps1       # Iniciar sistema completo
-│   ├── test-all.ps1           # Executar todos os testes
-│   ├── test-https.ps1         # Testar HTTPS e funcionalidades
-│   ├── test-permissions.ps1   # Testar RBAC
-│   ├── test-concurrent.ps1    # Testar lock distribuído
-│   ├── test-replication.ps1   # Testar replicação MySQL
-│   └── setup-replication-simple.ps1  # Configurar replicação
-├── docker-compose.yml         # Orquestração de containers
-├── .env                       # Variáveis de ambiente
-└── STATUS_SISTEMA_COMPLETO.md # Status detalhado do sistema
+### Auto Scaling
+```bash
+# Configurar auto scaling para ECS services
+aws application-autoscaling register-scalable-target \
+  --service-namespace ecs \
+  --scalable-dimension ecs:service:DesiredCount \
+  --resource-id service/sistema-reservas-cluster/usuarios-service \
+  --min-capacity 2 \
+  --max-capacity 10
 ```
 
-## 🔧 Troubleshooting
+### Multi-Region (Opcional)
+- Replicar infraestrutura em us-west-2
+- Configurar Route 53 health checks
+- Cross-region RDS read replicas
 
-### Containers não iniciam
-```powershell
-docker-compose down -v
-docker-compose up -d --build
-```
+## 💰 Estimativa de Custos (Mensal)
 
-### Replicação MySQL não funciona
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup-replication-simple.ps1
-```
+- **ECS Fargate**: ~$30 (2 tasks x 2 services)
+- **RDS t3.micro Multi-AZ**: ~$25
+- **ElastiCache t3.micro**: ~$15
+- **Amazon MQ t3.micro**: ~$20
+- **ALB**: ~$20
+- **CloudFront**: ~$5
+- **Total**: ~$115/mês
 
-### Verificar logs
-```powershell
-docker logs -f reservas-service
-docker logs -f usuarios-service
-docker logs -f mysql-primary
-docker logs -f mysql-secondary
-```
+## 🔄 CI/CD (Opcional)
 
-### Verificar status da replicação
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/check-replication.ps1
-```
-
-## 👥 Contribuindo
-
-1. Fork o projeto
-2. Crie uma branch (`git checkout -b feature/nova-funcionalidade`)
-3. Commit suas mudanças (`git commit -am 'Adiciona nova funcionalidade'`)
-4. Push para a branch (`git push origin feature/nova-funcionalidade`)
-5. Abra um Pull Request
-
-## 📄 Licença
-
-Este projeto é licenciado sob a MIT License.
-
-## 🎓 Trabalho Acadêmico
-
-Desenvolvido para a disciplina de Sistemas Distribuídos.
-
-**Requisitos Atendidos:**
-- ✅ Arquitetura de microserviços
-- ✅ Diferenciação de permissões (Admin/Cliente)
-- ✅ Sistema de mensageria (RabbitMQ)
-- ✅ Lock distribuído (Redis)
-- ✅ Replicação de banco de dados
-- ✅ HTTPS/SSL
-- ✅ Circuit breaker
-- ✅ Testes automatizados
+### GitHub Actions / CodePipeline
+1. Build automático das imagens
+2. Push para ECR
+3. Update ECS services
+4. Deploy frontend para S3
+5. Invalidação CloudFront
 
 ---
 
-**Status**: ✅ 100% FUNCIONAL E TESTADO
+**Sistema pronto para produção distribuída na AWS!** 🚀
 
-Para mais detalhes, consulte [STATUS_SISTEMA_COMPLETO.md](STATUS_SISTEMA_COMPLETO.md)
-
-Veja o guia completo em: [docs/AWS_DEPLOYMENT_PROFESSIONAL.md](docs/AWS_DEPLOYMENT_PROFESSIONAL.md)
-
-## 🧪 Testes
-
-### Manual
+### 1. Preparação:
 ```bash
-# Use o arquivo testes.http com REST Client
-# Ou importe no Postman
+./prepare-aws-deploy.sh
 ```
 
-### Automatizado
-```powershell
-# PowerShell
-.\scripts\test-system.ps1
+### 2. Deploy:
+```bash
+./deploy-aws.sh
 ```
 
-## 📁 Estrutura do Projeto
-
-```
-├── backend/              # Serviços atuais (funcionando)
-│   ├── servico-usuarios/
-│   └── servico-reservas/
-├── services/             # Código refatorado (clean code)
-│   ├── auth-service/
-│   └── reservations-service/
-├── frontend/             # React + Vite
-├── docs/                 # Documentação
-├── scripts/              # Scripts de teste
-├── docker-compose.yml    # Orquestração
-└── init.sql              # Schema do banco
+### 3. Verificar:
+```bash
+./check-aws-status.sh
 ```
 
-## 🎓 Conceitos Aplicados
+## 💰 Custos AWS Free Tier
 
-- Microserviços
-- Event-Driven Architecture
-- CQRS (Command Query Responsibility Segregation)
-- Circuit Breaker Pattern
-- Distributed Locking
-- Message Queue
-- RBAC (Role-Based Access Control)
-- JWT Authentication
-- Database Replication
+### ✅ Recursos Gratuitos (12 meses):
+- **ECS Fargate**: 750 horas/mês
+- **RDS MySQL**: 750 horas/mês (db.t3.micro)
+- **ECR**: 500MB/mês
+- **CloudWatch**: 5GB logs/mês
+- **Data Transfer**: 1GB/mês
 
-## 🤝 Contribuindo
+### 📊 Uso Real do Sistema:
+- **5 containers ECS**: ~150h/mês cada = 750h total ✅
+- **RDS MySQL**: ~720h/mês ✅
+- **Imagens Docker**: ~200MB ✅
+- **Logs**: ~1GB/mês ✅
 
-1. Fork o projeto
-2. Crie uma branch (`git checkout -b feature/nova-funcionalidade`)
-3. Commit suas mudanças (`git commit -m 'Adiciona nova funcionalidade'`)
-4. Push para a branch (`git push origin feature/nova-funcionalidade`)
-5. Abra um Pull Request
+**💡 Resultado: $0/mês por ~5 meses (dentro do Free Tier)**
 
-## 📝 Licença
+## 🔍 Monitoramento
 
-Este projeto está sob a licença MIT.
+### Ver Logs em Tempo Real:
+```bash
+aws logs tail /ecs/usuarios-service --follow
+aws logs tail /ecs/reservas-service --follow
+aws logs tail /ecs/frontend-nginx --follow
+```
 
-## 👥 Autores
+### Reiniciar Serviços:
+```bash
+aws ecs update-service --cluster sistema-reservas-cluster --service usuarios-service --force-new-deployment
+```
 
-- Sistema desenvolvido como projeto acadêmico de Sistemas Distribuídos
+### Escalar Serviços:
+```bash
+aws ecs update-service --cluster sistema-reservas-cluster --service usuarios-service --desired-count 2
+```
 
-## 🆘 Suporte
+## 🌐 Acesso à Aplicação
 
-Para problemas ou dúvidas:
-1. Consulte o [GUIA_FINAL_COMPLETO.md](GUIA_FINAL_COMPLETO.md)
-2. Verifique os logs: `docker-compose logs -f`
-3. Abra uma issue no repositório
+Após o deploy, você receberá os IPs públicos:
+
+- **Frontend**: `https://[IP_FRONTEND]`
+- **API Usuários**: `http://[IP_USUARIOS]:3000`
+- **API Reservas**: `http://[IP_RESERVAS]:3001`
+- **RabbitMQ Management**: `http://[IP_RABBITMQ]:15672`
+  - Usuário: `admin`
+  - Senha: `rabbitmq2024`
+
+## 🚨 Importante
+
+### ✅ Vantagens:
+- **Arquitetura distribuída real**
+- **Microserviços independentes**
+- **Banco de dados gerenciado**
+- **Logs centralizados**
+- **Escalabilidade automática**
+- **Zero custo (Free Tier)**
+
+### ⚠️ Limitações Free Tier:
+- **750 horas/mês** por serviço ECS
+- **20GB** storage RDS
+- **1GB** data transfer/mês
+- **Sem Load Balancer** (não é Free Tier)
+
+### 💡 Dicas:
+- **Monitore uso**: AWS Console → Billing & Cost Management
+- **Pare quando não usar**: Execute `./cleanup-aws.sh`
+- **Logs limitados**: 5GB/mês no CloudWatch
+
+## 🎉 Resultado Final
+
+Após executar o deploy você terá:
+
+✅ **Sistema 100% na nuvem AWS**  
+✅ **Arquitetura de microserviços profissional**  
+✅ **Banco de dados MySQL gerenciado**  
+✅ **Cache Redis distribuído**  
+✅ **Sistema de mensageria RabbitMQ**  
+✅ **Logs centralizados no CloudWatch**  
+✅ **Containers independentes e escaláveis**  
+✅ **Custo $0 por meses (Free Tier)**  
+
+**🚀 Sua aplicação rodando em produção na AWS de forma distribuída!**
 
 ---
 
-**Sistema 100% Funcional e Pronto para Produção! 🚀**
+## 📚 Documentação Adicional
+
+- [DEPLOY_AWS_GUIA.md](DEPLOY_AWS_GUIA.md) - Guia detalhado passo a passo
+- [Logs do Sistema](https://console.aws.amazon.com/cloudwatch/home#logsV2:log-groups) - CloudWatch Logs
+- [AWS Free Tier](https://aws.amazon.com/free/) - Detalhes dos recursos gratuitos
