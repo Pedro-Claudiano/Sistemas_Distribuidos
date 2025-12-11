@@ -847,3 +847,255 @@ const gracefulShutdown = async (signal) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+// --- NOVAS ROTAS PARA SISTEMA DE APROVAÇÃO ---
+
+// Rota para admin propor mudança (requer aprovação do cliente)
+apiRouter.put('/reservas/:id/propor-mudanca', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const reservationId = req.params.id;
+  const { room_id, start_time, end_time } = req.body;
+  const adminId = req.user.userId;
+
+  console.log(`[Mudanças] Admin ${adminId} propondo mudança para reserva ${reservationId}`);
+
+  if (!room_id && !start_time && !end_time) {
+    return res.status(400).json({ error: 'Forneça pelo menos um campo para alterar.' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    // Busca a reserva atual
+    const [reservations] = await connection.query(
+      'SELECT user_id, room_id, start_time, end_time FROM Reservas WHERE id = ?',
+      [reservationId]
+    );
+
+    if (reservations.length === 0) {
+      return res.status(404).json({ error: 'Reserva não encontrada.' });
+    }
+
+    const oldReservation = reservations[0];
+    const affectedUserId = oldReservation.user_id;
+
+    // Verifica se a mudança é com pelo menos 2 dias de antecedência
+    const currentDate = new Date();
+    const reservationDate = new Date(oldReservation.start_time);
+    const daysDifference = (reservationDate - currentDate) / (1000 * 60 * 60 * 24);
+
+    if (daysDifference < 2) {
+      return res.status(400).json({ error: 'Mudanças só podem ser propostas com pelo menos 2 dias de antecedência.' });
+    }
+
+    // Cria proposta de mudança
+    const mudancaId = uuidv4();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 2); // Expira em 2 dias
+
+    const newRoomId = room_id || oldReservation.room_id;
+    const newStartTime = start_time || oldReservation.start_time;
+    const newEndTime = end_time || oldReservation.end_time;
+
+    await connection.query(
+      `INSERT INTO MudancasPendentes 
+       (id, reserva_id, user_id, admin_id, old_room_id, old_start_time, old_end_time, 
+        new_room_id, new_start_time, new_end_time, expires_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [mudancaId, reservationId, affectedUserId, adminId, 
+       oldReservation.room_id, oldReservation.start_time, oldReservation.end_time,
+       newRoomId, newStartTime, newEndTime, expiresAt]
+    );
+
+    // Envia notificação ao cliente
+    const notification = {
+      userId: affectedUserId,
+      message: `O administrador propôs uma mudança na sua reserva. Nova sala: ${newRoomId}, Novo horário: ${new Date(newStartTime).toLocaleString('pt-BR')} - ${new Date(newEndTime).toLocaleString('pt-BR')}. Você tem 2 dias para aprovar.`,
+      type: 'change_request',
+      relatedId: mudancaId
+    };
+
+    await sendNotification(notification);
+    console.log(`[Mudanças] Proposta de mudança ${mudancaId} criada e notificação enviada`);
+
+    res.status(201).json({
+      message: 'Proposta de mudança enviada ao cliente.',
+      mudancaId: mudancaId,
+      expiresAt: expiresAt
+    });
+  } catch (err) {
+    console.error(`Erro ao propor mudança:`, err);
+    res.status(500).json({ error: 'Não foi possível propor a mudança.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Rota para cliente responder à proposta de mudança
+apiRouter.put('/mudancas/:id/responder', authenticateToken, async (req, res) => {
+  const mudancaId = req.params.id;
+  const { aprovado } = req.body; // true ou false
+  const userId = req.user.userId;
+
+  console.log(`[Mudanças] Usuário ${userId} respondendo à mudança ${mudancaId}: ${aprovado ? 'APROVADO' : 'REJEITADO'}`);
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    // Busca a mudança pendente
+    const [mudancas] = await connection.query(
+      'SELECT * FROM MudancasPendentes WHERE id = ? AND user_id = ? AND status = "pending"',
+      [mudancaId, userId]
+    );
+
+    if (mudancas.length === 0) {
+      return res.status(404).json({ error: 'Mudança não encontrada ou já foi respondida.' });
+    }
+
+    const mudanca = mudancas[0];
+
+    // Verifica se não expirou
+    if (new Date() > new Date(mudanca.expires_at)) {
+      await connection.query(
+        'UPDATE MudancasPendentes SET status = "expired" WHERE id = ?',
+        [mudancaId]
+      );
+      return res.status(400).json({ error: 'Esta proposta de mudança expirou.' });
+    }
+
+    if (aprovado) {
+      // Aplica a mudança na reserva
+      await connection.query(
+        'UPDATE Reservas SET room_id = ?, start_time = ?, end_time = ? WHERE id = ?',
+        [mudanca.new_room_id, mudanca.new_start_time, mudanca.new_end_time, mudanca.reserva_id]
+      );
+
+      // Marca como aprovado
+      await connection.query(
+        'UPDATE MudancasPendentes SET status = "approved", responded_at = NOW() WHERE id = ?',
+        [mudancaId]
+      );
+
+      // Notifica o admin
+      const notification = {
+        userId: mudanca.admin_id,
+        message: `O cliente aprovou a mudança da reserva para sala ${mudanca.new_room_id} em ${new Date(mudanca.new_start_time).toLocaleString('pt-BR')}.`,
+        type: 'change_approved',
+        relatedId: mudancaId
+      };
+      await sendNotification(notification);
+
+      res.status(200).json({ message: 'Mudança aprovada e aplicada com sucesso.' });
+    } else {
+      // Marca como rejeitado
+      await connection.query(
+        'UPDATE MudancasPendentes SET status = "rejected", responded_at = NOW() WHERE id = ?',
+        [mudancaId]
+      );
+
+      // Notifica o admin
+      const notification = {
+        userId: mudanca.admin_id,
+        message: `O cliente rejeitou a proposta de mudança da reserva.`,
+        type: 'change_rejected',
+        relatedId: mudancaId
+      };
+      await sendNotification(notification);
+
+      res.status(200).json({ message: 'Mudança rejeitada.' });
+    }
+  } catch (err) {
+    console.error(`Erro ao responder mudança:`, err);
+    res.status(500).json({ error: 'Não foi possível processar a resposta.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Rota para listar mudanças pendentes do usuário
+apiRouter.get('/mudancas-pendentes', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [mudancas] = await connection.query(
+      `SELECT m.*, r.room_id as current_room_id, r.start_time as current_start_time, r.end_time as current_end_time
+       FROM MudancasPendentes m 
+       JOIN Reservas r ON m.reserva_id = r.id 
+       WHERE m.user_id = ? AND m.status = "pending" AND m.expires_at > NOW()
+       ORDER BY m.created_at DESC`,
+      [userId]
+    );
+    res.status(200).json(mudancas);
+  } catch (err) {
+    console.error('Erro ao buscar mudanças pendentes:', err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Rota para admin listar todas as reservas com detalhes do usuário
+apiRouter.get('/reservas-detalhadas', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  console.log(`[Reservas] Admin ${req.user.userId} buscando reservas detalhadas.`);
+  
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.query(
+      `SELECT r.*, u.name as user_name, u.email as user_email 
+       FROM Reservas r 
+       JOIN Usuarios u ON r.user_id = u.id 
+       ORDER BY r.start_time DESC`
+    );
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error("Erro ao buscar reservas detalhadas:", err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  } finally {
+     if (connection) connection.release();
+  }
+});
+
+// Job para cancelar mudanças expiradas (executar periodicamente)
+setInterval(async () => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    // Busca mudanças expiradas
+    const [expiredChanges] = await connection.query(
+      'SELECT * FROM MudancasPendentes WHERE status = "pending" AND expires_at < NOW()'
+    );
+
+    for (const mudanca of expiredChanges) {
+      // Marca como expirada
+      await connection.query(
+        'UPDATE MudancasPendentes SET status = "expired" WHERE id = ?',
+        [mudanca.id]
+      );
+
+      // Cancela a reserva original
+      await connection.query(
+        'UPDATE Reservas SET status = "cancelled" WHERE id = ?',
+        [mudanca.reserva_id]
+      );
+
+      // Notifica o cliente
+      const notification = {
+        userId: mudanca.user_id,
+        message: `Sua reserva foi cancelada pois você não respondeu à proposta de mudança dentro do prazo.`,
+        type: 'change_expired',
+        relatedId: mudanca.id
+      };
+      await sendNotification(notification);
+
+      console.log(`[Mudanças] Reserva ${mudanca.reserva_id} cancelada por expiração da mudança ${mudanca.id}`);
+    }
+  } catch (err) {
+    console.error('Erro no job de limpeza:', err);
+  } finally {
+    if (connection) connection.release();
+  }
+}, 60000); // Executa a cada minuto

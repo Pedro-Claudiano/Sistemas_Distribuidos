@@ -8,6 +8,8 @@ import Register from './pages/Register.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import RoomSelection from './pages/RoomSelection.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
+import AdminReservations from './pages/AdminReservations.jsx';
+import ClientNotifications from './pages/ClientNotifications.jsx';
 import Profile from './pages/Profile.jsx';
 import './index.css';
 
@@ -43,6 +45,14 @@ const router = createBrowserRouter([
       {
         path: "admin",
         element: <AdminDashboard />,
+      },
+      {
+        path: "admin/reservas",
+        element: <AdminReservations />,
+      },
+      {
+        path: "notifications",
+        element: <ClientNotifications />,
       },
       {
         path: "profile",
