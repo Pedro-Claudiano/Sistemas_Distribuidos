@@ -1,0 +1,33 @@
+{
+    "family": "frontend-task-fixed",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512",
+    "executionRoleArn": "arn:aws:iam::215665149732:role/ecsTaskExecutionRole",
+    "containerDefinitions": [
+        {
+            "name": "frontend-container",
+            "image": "215665149732.dkr.ecr.us-east-1.amazonaws.com/frontend-nginx:prod",
+            "portMappings": [
+                {
+                    "containerPort": 80,
+                    "protocol": "tcp"
+                }
+            ],
+            "environment": [
+                {"name": "REACT_APP_API_URL", "value": "http://44.222.169.212:3000"}
+            ],
+            "essential": true,
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/frontend-service",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs",
+                    "awslogs-create-group": "true"
+                }
+            }
+        }
+    ]
+}

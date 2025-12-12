@@ -27,6 +27,9 @@ const connectToMySQL = async () => {
       const connection = await pool.getConnection();
       logger.info(`Conectado ao MySQL no host: ${process.env.DB_HOST} com sucesso!`);
       connection.release();
+      
+      // Configurar banco na primeira conexão
+      await setupDatabaseIfNeeded();
       break; 
     } catch (err) {
       logger.error(`ERRO ao conectar ao MySQL: ${err.message}. Tentativas restantes: ${retries}`);
@@ -35,6 +38,129 @@ const connectToMySQL = async () => {
     }
   }
   if (!retries) logger.error("Falha fatal ao conectar ao MySQL.");
+};
+
+const setupDatabaseIfNeeded = async () => {
+  try {
+    logger.info('Verificando se o banco precisa ser configurado...');
+    const connection = await pool.getConnection();
+    
+    // Tenta usar o database reservas_db
+    await connection.execute('USE reservas_db');
+    
+    // Verifica se a tabela Usuarios existe
+    const [tables] = await connection.execute("SHOW TABLES LIKE 'Usuarios'");
+    
+    if (tables.length === 0) {
+      logger.info('Banco não configurado. Configurando...');
+      await setupDatabase(connection);
+    } else {
+      logger.info('Banco já configurado!');
+    }
+    
+    connection.release();
+  } catch (err) {
+    logger.error(`Erro ao verificar/configurar banco: ${err.message}`);
+  }
+};
+
+const setupDatabase = async (connection) => {
+  try {
+    // Criar database se não existir
+    await connection.execute('CREATE DATABASE IF NOT EXISTS reservas_db');
+    await connection.execute('USE reservas_db');
+    
+    // Criar tabelas
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS Usuarios (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        role ENUM('admin', 'client') NOT NULL DEFAULT 'client',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS Salas (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        location VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_sala_name_location (name, location)
+      )
+    `);
+    
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS Reservas (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        room_id VARCHAR(255) NOT NULL,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_room_time (room_id, start_time),
+        FOREIGN KEY (user_id) REFERENCES Usuarios(id)
+      )
+    `);
+    
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS Eventos (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        room_id VARCHAR(255) NOT NULL,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME NOT NULL,
+        created_by VARCHAR(36) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_event_room_time (room_id, start_time),
+        FOREIGN KEY (created_by) REFERENCES Usuarios(id)
+      )
+    `);
+    
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS Notificacoes (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        message TEXT NOT NULL,
+        type ENUM('reservation_deleted', 'reservation_modified', 'event_created') NOT NULL,
+        related_id VARCHAR(36),
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES Usuarios(id)
+      )
+    `);
+    
+    // Criar admin padrão
+    const adminId = uuidv4();
+    const adminPassword = await bcrypt.hash('admin123', 10);
+    
+    await connection.execute(`
+      INSERT IGNORE INTO Usuarios (id, name, email, password_hash, role) 
+      VALUES (?, 'Administrador', 'admin@exemplo.com', ?, 'admin')
+    `, [adminId, adminPassword]);
+    
+    // Criar salas de exemplo
+    const salas = [
+      { id: uuidv4(), name: 'Sala A1', location: 'Prédio A' },
+      { id: uuidv4(), name: 'Sala B2', location: 'Prédio B' },
+      { id: uuidv4(), name: 'Auditório', location: 'Prédio Principal' },
+      { id: uuidv4(), name: 'Lab Informática', location: 'Prédio C' }
+    ];
+
+    for (const sala of salas) {
+      await connection.execute(`
+        INSERT IGNORE INTO Salas (id, name, location) 
+        VALUES (?, ?, ?)
+      `, [sala.id, sala.name, sala.location]);
+    }
+    
+    logger.info('✅ Banco de dados configurado com sucesso!');
+  } catch (err) {
+    logger.error(`Erro ao configurar banco: ${err.message}`);
+  }
 };
 
 connectToMySQL();
@@ -283,6 +409,328 @@ apiRouter.put('/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// --- ROTAS PARA SALAS ---
+
+// Listar Salas
+apiRouter.get('/rooms', authenticateToken, async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.query('SELECT id, name, location, created_at FROM Salas ORDER BY name');
+    res.status(200).json(rows);
+  } catch (err) {
+    logger.error(`Erro ao listar salas: ${err.message}`);
+    res.status(500).json({ error: 'Erro ao listar salas.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Criar Sala (apenas admin)
+apiRouter.post('/rooms', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { name, location } = req.body;
+  
+  if (!name || !location) {
+    return res.status(400).json({ error: 'Nome e localização são obrigatórios.' });
+  }
+  
+  let connection;
+  try {
+    const roomId = uuidv4();
+    
+    connection = await pool.getConnection();
+    await connection.query(
+      'INSERT INTO Salas (id, name, location) VALUES (?, ?, ?)',
+      [roomId, name, location]
+    );
+    
+    logger.info(`Nova sala criada: ${name} - ${location} (Admin: ${req.user.userId})`);
+    res.status(201).json({ id: roomId, name, location });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+       logger.warn(`Tentativa de criar sala duplicada: ${name} - ${location}`);
+       res.status(409).json({ error: 'Já existe uma sala com este nome nesta localização.' });
+    } else {
+       logger.error(`Erro ao criar sala: ${err.message}`);
+       res.status(500).json({ error: 'Erro ao criar sala.' });
+    }
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Atualizar Sala (apenas admin)
+apiRouter.put('/rooms/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const roomId = req.params.id;
+  const { name, location } = req.body;
+  
+  if (!name && !location) {
+    return res.status(400).json({ error: 'Forneça pelo menos um campo para atualizar.' });
+  }
+  
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    // Busca a sala atual
+    const [rooms] = await connection.query('SELECT * FROM Salas WHERE id = ?', [roomId]);
+    if (rooms.length === 0) {
+      return res.status(404).json({ error: 'Sala não encontrada.' });
+    }
+    
+    const room = rooms[0];
+    const newName = name || room.name;
+    const newLocation = location || room.location;
+    
+    // Atualiza no banco
+    await connection.query(
+      'UPDATE Salas SET name = ?, location = ? WHERE id = ?',
+      [newName, newLocation, roomId]
+    );
+    
+    logger.info(`Sala ${roomId} atualizada: ${newName} - ${newLocation} (Admin: ${req.user.userId})`);
+    res.status(200).json({ message: 'Sala atualizada com sucesso.', id: roomId, name: newName, location: newLocation });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      logger.warn(`Tentativa de atualização com nome/localização duplicados: ${name} - ${location}`);
+      return res.status(409).json({ error: 'Já existe uma sala com este nome nesta localização.' });
+    }
+    logger.error(`Erro ao atualizar sala: ${err.message}`);
+    res.status(500).json({ error: 'Erro ao atualizar sala.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Deletar Sala (apenas admin)
+apiRouter.delete('/rooms/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const roomId = req.params.id;
+  
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    // Inicia uma transação
+    await connection.beginTransaction();
+    
+    // Verifica se há reservas para esta sala
+    const [reservations] = await connection.query('SELECT COUNT(*) as count FROM Reservas WHERE room_id = ?', [roomId]);
+    
+    if (reservations[0].count > 0) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'Não é possível deletar uma sala que possui reservas.' });
+    }
+    
+    // Deleta a sala
+    const [result] = await connection.query('DELETE FROM Salas WHERE id = ?', [roomId]);
+    
+    if (result.affectedRows > 0) {
+      await connection.commit();
+      logger.info(`Sala ${roomId} deletada com sucesso (Admin: ${req.user.userId})`);
+      res.status(200).json({ message: 'Sala deletada com sucesso.' });
+    } else {
+      await connection.rollback();
+      res.status(404).json({ error: 'Sala não encontrada.' });
+    }
+  } catch (err) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackErr) {
+        logger.error(`Erro ao fazer rollback: ${rollbackErr.message}`);
+      }
+    }
+    logger.error(`Erro ao deletar sala: ${err.message}`);
+    res.status(500).json({ error: 'Erro ao deletar sala.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// --- ROTAS PARA RESERVAS ---
+
+// Listar Reservas (admin vê todas, cliente vê só as suas)
+apiRouter.get('/reservas', authenticateToken, async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    let query;
+    let params;
+    
+    if (req.user.role === 'admin') {
+      // Admin vê todas as reservas com informações do usuário
+      query = `
+        SELECT r.*, u.name as user_name, u.email as user_email 
+        FROM Reservas r 
+        JOIN Usuarios u ON r.user_id = u.id 
+        ORDER BY r.start_time DESC
+      `;
+      params = [];
+    } else {
+      // Cliente vê apenas suas reservas
+      query = `
+        SELECT r.*, u.name as user_name, u.email as user_email 
+        FROM Reservas r 
+        JOIN Usuarios u ON r.user_id = u.id 
+        WHERE r.user_id = ? 
+        ORDER BY r.start_time DESC
+      `;
+      params = [req.user.userId];
+    }
+    
+    const [rows] = await connection.query(query, params);
+    res.status(200).json(rows);
+  } catch (err) {
+    logger.error(`Erro ao listar reservas: ${err.message}`);
+    res.status(500).json({ error: 'Erro ao listar reservas.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Criar Reserva
+apiRouter.post('/reservas', authenticateToken, async (req, res) => {
+  const { room_id, start_time, end_time } = req.body;
+  
+  if (!room_id || !start_time || !end_time) {
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
+  }
+  
+  let connection;
+  try {
+    const reservaId = uuidv4();
+    
+    connection = await pool.getConnection();
+    
+    // Verifica se a sala existe
+    const [salas] = await connection.query('SELECT id FROM Salas WHERE id = ?', [room_id]);
+    if (salas.length === 0) {
+      return res.status(404).json({ error: 'Sala não encontrada.' });
+    }
+    
+    // Verifica conflitos de horário
+    const [conflicts] = await connection.query(`
+      SELECT id FROM Reservas 
+      WHERE room_id = ? 
+      AND status != 'cancelled'
+      AND (
+        (start_time <= ? AND end_time > ?) OR
+        (start_time < ? AND end_time >= ?) OR
+        (start_time >= ? AND end_time <= ?)
+      )
+    `, [room_id, start_time, start_time, end_time, end_time, start_time, end_time]);
+    
+    if (conflicts.length > 0) {
+      return res.status(409).json({ error: 'Já existe uma reserva para este horário.' });
+    }
+    
+    await connection.query(
+      'INSERT INTO Reservas (id, user_id, room_id, start_time, end_time, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [reservaId, req.user.userId, room_id, start_time, end_time, 'confirmed']
+    );
+    
+    logger.info(`Nova reserva criada: ${reservaId} (User: ${req.user.userId})`);
+    res.status(201).json({ id: reservaId, user_id: req.user.userId, room_id, start_time, end_time, status: 'confirmed' });
+  } catch (err) {
+    logger.error(`Erro ao criar reserva: ${err.message}`);
+    res.status(500).json({ error: 'Erro ao criar reserva.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Cancelar Reserva
+apiRouter.delete('/reservas/:id', authenticateToken, async (req, res) => {
+  const reservaId = req.params.id;
+  
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    // Verifica se a reserva existe e se o usuário tem permissão
+    let query, params;
+    if (req.user.role === 'admin') {
+      query = 'SELECT * FROM Reservas WHERE id = ?';
+      params = [reservaId];
+    } else {
+      query = 'SELECT * FROM Reservas WHERE id = ? AND user_id = ?';
+      params = [reservaId, req.user.userId];
+    }
+    
+    const [reservas] = await connection.query(query, params);
+    if (reservas.length === 0) {
+      return res.status(404).json({ error: 'Reserva não encontrada ou sem permissão.' });
+    }
+    
+    // Atualiza o status para cancelada
+    await connection.query(
+      'UPDATE Reservas SET status = ? WHERE id = ?',
+      ['cancelled', reservaId]
+    );
+    
+    logger.info(`Reserva ${reservaId} cancelada (User: ${req.user.userId})`);
+    res.status(200).json({ message: 'Reserva cancelada com sucesso.' });
+  } catch (err) {
+    logger.error(`Erro ao cancelar reserva: ${err.message}`);
+    res.status(500).json({ error: 'Erro ao cancelar reserva.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// Propor mudança de reserva (admin)
+apiRouter.put('/reservas/:id/propor-mudanca', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const reservaId = req.params.id;
+  const { room_id, start_time, end_time } = req.body;
+  
+  if (!room_id || !start_time || !end_time) {
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
+  }
+  
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    // Verifica se a reserva existe
+    const [reservas] = await connection.query('SELECT * FROM Reservas WHERE id = ?', [reservaId]);
+    if (reservas.length === 0) {
+      return res.status(404).json({ error: 'Reserva não encontrada.' });
+    }
+    
+    // Verifica conflitos de horário (excluindo a própria reserva)
+    const [conflicts] = await connection.query(`
+      SELECT id FROM Reservas 
+      WHERE room_id = ? 
+      AND id != ?
+      AND status != 'cancelled'
+      AND (
+        (start_time <= ? AND end_time > ?) OR
+        (start_time < ? AND end_time >= ?) OR
+        (start_time >= ? AND end_time <= ?)
+      )
+    `, [room_id, reservaId, start_time, start_time, end_time, end_time, start_time, end_time]);
+    
+    if (conflicts.length > 0) {
+      return res.status(409).json({ error: 'Já existe uma reserva para este horário.' });
+    }
+    
+    // Atualiza a reserva
+    await connection.query(
+      'UPDATE Reservas SET room_id = ?, start_time = ?, end_time = ?, status = ? WHERE id = ?',
+      [room_id, start_time, end_time, 'pending_approval', reservaId]
+    );
+    
+    logger.info(`Mudança proposta para reserva ${reservaId} (Admin: ${req.user.userId})`);
+    res.status(200).json({ message: 'Proposta de mudança enviada com sucesso.' });
+  } catch (err) {
+    logger.error(`Erro ao propor mudança: ${err.message}`);
+    res.status(500).json({ error: 'Erro ao propor mudança.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
 // Deletar Usuário
 apiRouter.delete('/users/:id', authenticateToken, async (req, res) => {
   const userId = req.params.id;
@@ -336,6 +784,216 @@ apiRouter.delete('/users/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Erro ao deletar conta.' });
   } finally {
     if (connection) connection.release();
+  }
+});
+
+// Endpoint para configurar o banco de dados
+app.post('/setup/database', async (req, res) => {
+  try {
+    logger.info('Iniciando configuração do banco de dados...');
+    
+    // Conectar sem especificar database
+    const setupConfig = {
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      port: process.env.DB_PORT || 3306,
+      connectTimeout: 30000
+    };
+    
+    const connection = await mysql.createConnection(setupConfig);
+    
+    // 1. Criar database
+    await connection.query('CREATE DATABASE IF NOT EXISTS reservas_db');
+    await connection.query('USE reservas_db');
+    logger.info('Database reservas_db criado/selecionado');
+    
+    // 2. Criar tabelas
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS Usuarios (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        role ENUM('admin', 'client') NOT NULL DEFAULT 'client',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS Salas (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        location VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_sala_name_location (name, location)
+      )
+    `);
+    
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS Reservas (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        room_id VARCHAR(255) NOT NULL,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME NOT NULL,
+        status ENUM('confirmed', 'pending_approval', 'cancelled') NOT NULL DEFAULT 'confirmed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_room_time (room_id, start_time),
+        FOREIGN KEY (user_id) REFERENCES Usuarios(id)
+      )
+    `);
+    
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS Eventos (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        room_id VARCHAR(255) NOT NULL,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME NOT NULL,
+        created_by VARCHAR(36) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_event_room_time (room_id, start_time),
+        FOREIGN KEY (created_by) REFERENCES Usuarios(id)
+      )
+    `);
+    
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS Notificacoes (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        message TEXT NOT NULL,
+        type ENUM('reservation_deleted', 'reservation_modified', 'event_created') NOT NULL,
+        related_id VARCHAR(36),
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES Usuarios(id)
+      )
+    `);
+    
+    logger.info('Tabelas criadas');
+    
+    // 3. Criar admin padrão
+    const adminId = uuidv4();
+    const adminPassword = await bcrypt.hash('admin123', 10);
+    
+    await connection.execute(`
+      INSERT IGNORE INTO Usuarios (id, name, email, password_hash, role) 
+      VALUES (?, 'Administrador', 'admin@exemplo.com', ?, 'admin')
+    `, [adminId, adminPassword]);
+    
+    // 4. Criar salas de exemplo
+    const salas = [
+      { id: uuidv4(), name: 'Sala A1', location: 'Prédio A' },
+      { id: uuidv4(), name: 'Sala B2', location: 'Prédio B' },
+      { id: uuidv4(), name: 'Auditório', location: 'Prédio Principal' },
+      { id: uuidv4(), name: 'Lab Informática', location: 'Prédio C' }
+    ];
+
+    for (const sala of salas) {
+      await connection.execute(`
+        INSERT IGNORE INTO Salas (id, name, location) 
+        VALUES (?, ?, ?)
+      `, [sala.id, sala.name, sala.location]);
+    }
+    
+    await connection.end();
+    
+    logger.info('Banco de dados configurado com sucesso!');
+    res.json({
+      status: 'SUCCESS',
+      message: 'Banco de dados configurado com sucesso!',
+      admin: 'admin@exemplo.com / admin123',
+      salas: salas.length
+    });
+    
+  } catch (err) {
+    logger.error(`Erro ao configurar banco: ${err.message}`);
+    res.status(500).json({
+      status: 'ERROR',
+      error: err.message
+    });
+  }
+});
+
+// Endpoint para corrigir tabela Reservas
+app.post('/fix/reservas-table', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    
+    // Verifica se a coluna status já existe
+    const [columns] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = 'reservas_db' 
+      AND TABLE_NAME = 'Reservas' 
+      AND COLUMN_NAME = 'status'
+    `);
+    
+    if (columns.length === 0) {
+      logger.info('Adicionando coluna status à tabela Reservas...');
+      
+      // Adiciona a coluna status
+      await connection.execute(`
+        ALTER TABLE Reservas 
+        ADD COLUMN status ENUM('confirmed', 'pending_approval', 'cancelled') NOT NULL DEFAULT 'confirmed'
+      `);
+      
+      logger.info('Coluna status adicionada com sucesso!');
+    }
+    
+    // Verifica a estrutura atual da tabela
+    const [structure] = await connection.execute('DESCRIBE Reservas');
+    
+    connection.release();
+    
+    res.json({
+      status: 'SUCCESS',
+      message: 'Tabela Reservas corrigida com sucesso!',
+      structure: structure
+    });
+    
+  } catch (err) {
+    logger.error(`Erro ao corrigir tabela: ${err.message}`);
+    res.status(500).json({
+      status: 'ERROR',
+      error: err.message
+    });
+  }
+});
+
+// Debug endpoint para testar conexão com banco
+app.get('/debug/db', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    
+    // Testa conexão básica
+    await connection.ping();
+    
+    // Tenta usar o database
+    await connection.execute('USE reservas_db');
+    
+    // Verifica se as tabelas existem
+    const [tables] = await connection.execute('SHOW TABLES');
+    
+    connection.release();
+    
+    res.json({
+      status: 'OK',
+      database: 'reservas_db',
+      tables: tables.map(t => Object.values(t)[0]),
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'ERROR',
+      error: err.message,
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      database: process.env.DB_NAME
+    });
   }
 });
 

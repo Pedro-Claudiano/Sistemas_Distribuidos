@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import InputField from '../components/InputField.jsx';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://3.228.1.69:3000/api';
 
 export default function Profile() {
   const [userId, setUserId] = useState(null);

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import InputField from "../components/InputField";
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://3.228.1.69:3000/api';
 
 export default function AdminRooms() {
   const navigate = useNavigate();
@@ -52,8 +52,19 @@ export default function AdminRooms() {
   }, [isAuthorized]);
 
   const fetchSalas = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setMessage({ type: 'error', text: 'Erro de autenticação. Faça login.' });
+      setTimeout(() => navigate('/login'), 2000);
+      return;
+    }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/salas`);
+      const response = await fetch(`${API_BASE_URL}/rooms`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!response.ok) throw new Error('Erro ao buscar salas');
       const data = await response.json();
       setSalas(data);
@@ -98,7 +109,7 @@ export default function AdminRooms() {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/salas/${salaId}`, {
+      const response = await fetch(`${API_BASE_URL}/rooms/${salaId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -135,7 +146,7 @@ export default function AdminRooms() {
     try {
       if (view === 'add') {
         // Adicionar
-        const response = await fetch(`${API_BASE_URL}/salas`, {
+        const response = await fetch(`${API_BASE_URL}/rooms`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -157,7 +168,7 @@ export default function AdminRooms() {
         setMessage({ type: "success", text: "Sala cadastrada com sucesso!" });
       } else {
         // Editar
-        const response = await fetch(`${API_BASE_URL}/salas/${currentSala.id}`, {
+        const response = await fetch(`${API_BASE_URL}/rooms/${currentSala.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

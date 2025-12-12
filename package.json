@@ -22,7 +22,9 @@
   "homepage": "https://github.com/Pedro-Claudiano/Sistemas_Distribuidos#readme",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.896.0",
-    "@aws-sdk/lib-dynamodb": "^3.896.0"
-  },
-  "devDependencies": {}
+    "@aws-sdk/lib-dynamodb": "^3.896.0",
+    "bcrypt": "^6.0.0",
+    "mysql2": "^3.15.3",
+    "uuid": "^13.0.0"
+  }
 }

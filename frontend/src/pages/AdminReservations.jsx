@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://3.228.1.69:3000/api';
 
 export default function AdminReservations() {
   const navigate = useNavigate();
@@ -64,7 +64,11 @@ export default function AdminReservations() {
       const reservasData = await reservasResponse.json();
 
       // Busca salas
-      const salasResponse = await fetch(`${API_BASE_URL}/salas`);
+      const salasResponse = await fetch(`${API_BASE_URL}/rooms`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!salasResponse.ok) throw new Error('Erro ao buscar salas');
       
       const salasData = await salasResponse.json();

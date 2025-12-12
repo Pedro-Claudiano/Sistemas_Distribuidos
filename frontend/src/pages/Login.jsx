@@ -20,7 +20,7 @@ export default function Login() {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/users/login", {
+      const response = await fetch("http://3.228.1.69:3000/api/users/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

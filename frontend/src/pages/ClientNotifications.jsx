@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://3.228.1.69:3000/api';
 
 export default function ClientNotifications() {
   const navigate = useNavigate();
@@ -9,28 +9,32 @@ export default function ClientNotifications() {
   const [notificacoes, setNotificacoes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(null); // null = verificando, true = autenticado, false = não autenticado
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
 
-  // Verifica se o usuário está autenticado e é cliente
+  // Verifica se o usuário está autenticado
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      setIsAuthenticated(false);
-      return;
-    }
-
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      // Admin não pode acessar notificações de clientes
-      if (payload.role === 'admin') {
+    const checkAuth = () => {
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
         setIsAuthenticated(false);
         return;
       }
-      setIsAuthenticated(true);
-    } catch (e) {
-      console.error('Erro ao decodificar token:', e);
-      setIsAuthenticated(false);
-    }
+
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.role === 'client') {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar token:', error);
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkAuth();
   }, []);
 
   useEffect(() => {
@@ -47,25 +51,12 @@ export default function ClientNotifications() {
     }
 
     try {
-      // Busca mudanças pendentes
-      const mudancasResponse = await fetch(`${API_BASE_URL}/mudancas-pendentes`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      // Por enquanto, endpoints de notificações não estão implementados
+      // Definindo dados vazios para não quebrar a interface
+      setMudancasPendentes([]);
+      setNotificacoes([]);
       
-      if (mudancasResponse.ok) {
-        const mudancasData = await mudancasResponse.json();
-        setMudancasPendentes(mudancasData);
-      }
-
-      // Busca notificações
-      const notifResponse = await fetch(`${API_BASE_URL}/notificacoes`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (notifResponse.ok) {
-        const notifData = await notifResponse.json();
-        setNotificacoes(notifData);
-      }
+      setMessage({ type: 'info', text: 'Sistema de notificações será implementado em breve.' });
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
       setMessage({ type: 'error', text: 'Erro ao carregar dados.' });
@@ -75,79 +66,13 @@ export default function ClientNotifications() {
   };
 
   const handleResponderMudanca = async (mudancaId, aprovado) => {
-    const token = localStorage.getItem('authToken');
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/mudancas/${mudancaId}/responder`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ aprovado })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao responder');
-      }
-
-      const actionText = aprovado ? 'aprovada' : 'rejeitada';
-      setMessage({ type: 'success', text: `Mudança ${actionText} com sucesso!` });
-      
-      // Remove a mudança da lista
-      setMudancasPendentes(mudancasPendentes.filter(m => m.id !== mudancaId));
-      
-      // Recarrega as notificações
-      setTimeout(() => {
-        fetchData();
-        setMessage(null);
-      }, 2000);
-    } catch (error) {
-      console.error('Erro ao responder mudança:', error);
-      setMessage({ type: 'error', text: error.message });
-    }
+    // Endpoint não implementado ainda
+    setMessage({ type: 'info', text: 'Funcionalidade será implementada em breve.' });
   };
 
   const handleMarcarComoLida = async (notifId) => {
-    const token = localStorage.getItem('authToken');
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/notificacoes/${notifId}/lida`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        setNotificacoes(notificacoes.map(n => 
-          n.id === notifId ? { ...n, is_read: true } : n
-        ));
-      }
-    } catch (error) {
-      console.error('Erro ao marcar como lida:', error);
-    }
-  };
-
-  const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString('pt-BR');
-  };
-
-  const getTimeRemaining = (expiresAt) => {
-    const now = new Date();
-    const expires = new Date(expiresAt);
-    const diff = expires - now;
-    
-    if (diff <= 0) return 'Expirado';
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 24) {
-      const days = Math.floor(hours / 24);
-      return `${days} dia(s) restante(s)`;
-    }
-    
-    return `${hours}h ${minutes}m restante(s)`;
+    // Endpoint não implementado ainda
+    setMessage({ type: 'info', text: 'Funcionalidade será implementada em breve.' });
   };
 
   // Tela de carregamento
@@ -156,64 +81,39 @@ export default function ClientNotifications() {
       <>
         <h1 className="app-logo">SIRESA</h1>
         <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
-          <p>Verificando autenticação...</p>
+          <p>Verificando permissões...</p>
         </div>
       </>
     );
   }
 
-  // Tela de não autenticado ou admin tentando acessar
+  // Tela de não autorizado
   if (isAuthenticated === false) {
-    const token = localStorage.getItem('authToken');
-    let isAdmin = false;
-    
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        isAdmin = payload.role === 'admin';
-      } catch (e) {
-        // Token inválido
-      }
-    }
-
     return (
       <>
         <h1 className="app-logo">SIRESA</h1>
         <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>{isAdmin ? '🚫' : '🔒'}</div>
-          <h2 className="form-title" style={{ color: '#e74c3c', marginBottom: '1rem' }}>
-            {isAdmin ? 'Acesso Negado' : 'Acesso Restrito'}
-          </h2>
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🚫</div>
+          <h2 className="form-title" style={{ color: '#e74c3c', marginBottom: '1rem' }}>Acesso Negado</h2>
           <p style={{ marginBottom: '2rem', color: '#666' }}>
-            {isAdmin ? (
-              <>
-                Esta página é exclusiva para clientes.
-                <br />
-                Administradores devem usar o painel administrativo.
-              </>
-            ) : (
-              <>
-                Você precisa estar logado para ver suas notificações.
-                <br />
-                Faça login para continuar.
-              </>
-            )}
+            Você não tem permissão para acessar esta página.
+            <br />
+            Apenas clientes podem ver notificações.
           </p>
-          {isAdmin ? (
-            <button 
-              className="login-button" 
-              onClick={() => navigate('/admin')}
-            >
-              Ir para Painel Admin
-            </button>
-          ) : (
-            <button 
-              className="login-button" 
-              onClick={() => navigate('/login')}
-            >
-              Fazer Login
-            </button>
-          )}
+          <button 
+            className="login-button" 
+            onClick={() => navigate('/admin')}
+            style={{ marginBottom: '1rem' }}
+          >
+            Ir para Admin
+          </button>
+          <br />
+          <button 
+            className="login-button cancel" 
+            onClick={() => navigate('/login')}
+          >
+            Fazer Login
+          </button>
         </div>
       </>
     );
@@ -224,7 +124,7 @@ export default function ClientNotifications() {
       <>
         <h1 className="app-logo">SIRESA</h1>
         <div className="login-container" style={{ textAlign: 'center', padding: '3rem' }}>
-          <p>Carregando...</p>
+          <p>Carregando notificações...</p>
         </div>
       </>
     );
@@ -235,7 +135,7 @@ export default function ClientNotifications() {
       <h1 className="app-logo">SIRESA</h1>
 
       <div className="page-user-actions">
-        <span className="welcome-message">Notificações e Mudanças</span>
+        <span className="welcome-message">Notificações</span>
         <div className="user-actions">
           <button 
             onClick={() => navigate('/dashboard')} 
@@ -257,7 +157,9 @@ export default function ClientNotifications() {
         </div>
       </div>
 
-      <div className="login-container admin-dashboard">
+      <div className="login-container">
+        <h2 className="form-title">Central de Notificações</h2>
+        
         {message && (
           <div className={`form-message ${message.type}`} style={{ marginBottom: '1rem' }}>
             {message.text}
@@ -265,88 +167,69 @@ export default function ClientNotifications() {
         )}
 
         {/* Mudanças Pendentes */}
-        <div className="section">
-          <h2 className="form-title">Mudanças Pendentes de Aprovação</h2>
-          
+        <div className="notification-section">
+          <h3>Propostas de Mudança</h3>
           {mudancasPendentes.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#666', marginTop: '1rem' }}>
-              Nenhuma mudança pendente.
-            </p>
+            <p className="empty-message">Nenhuma proposta de mudança pendente.</p>
           ) : (
-            <div className="changes-list">
+            <div className="notifications-list">
               {mudancasPendentes.map(mudanca => (
-                <div key={mudanca.id} className="change-card urgent">
-                  <div className="change-header">
-                    <h3>Proposta de Mudança</h3>
-                    <span className="time-remaining">
-                      {getTimeRemaining(mudanca.expires_at)}
-                    </span>
+                <div key={mudanca.id} className="notification-card mudanca">
+                  <div className="notification-header">
+                    <h4>Proposta de Mudança - Reserva #{mudanca.reserva_id}</h4>
+                    <span className="notification-date">{new Date(mudanca.created_at).toLocaleDateString()}</span>
                   </div>
-                  
-                  <div className="change-comparison">
-                    <div className="change-before">
-                      <h4>Reserva Atual:</h4>
-                      <p><strong>Sala:</strong> {mudanca.old_room_id}</p>
-                      <p><strong>Início:</strong> {formatDateTime(mudanca.old_start_time)}</p>
-                      <p><strong>Fim:</strong> {formatDateTime(mudanca.old_end_time)}</p>
-                    </div>
-                    
-                    <div className="change-arrow">→</div>
-                    
-                    <div className="change-after">
-                      <h4>Nova Proposta:</h4>
-                      <p><strong>Sala:</strong> {mudanca.new_room_id}</p>
-                      <p><strong>Início:</strong> {formatDateTime(mudanca.new_start_time)}</p>
-                      <p><strong>Fim:</strong> {formatDateTime(mudanca.new_end_time)}</p>
-                    </div>
+                  <div className="notification-content">
+                    <p><strong>Nova Sala:</strong> {mudanca.nova_sala}</p>
+                    <p><strong>Novo Horário:</strong> {new Date(mudanca.novo_inicio).toLocaleString()} - {new Date(mudanca.novo_fim).toLocaleString()}</p>
+                    <p><strong>Motivo:</strong> {mudanca.motivo || 'Não informado'}</p>
                   </div>
-
-                  <div className="change-actions">
+                  <div className="notification-actions">
+                    <button 
+                      onClick={() => handleResponderMudanca(mudanca.id, true)}
+                      className="action-btn approve"
+                    >
+                      Aceitar
+                    </button>
                     <button 
                       onClick={() => handleResponderMudanca(mudanca.id, false)}
                       className="action-btn reject"
                     >
                       Rejeitar
                     </button>
-                    <button 
-                      onClick={() => handleResponderMudanca(mudanca.id, true)}
-                      className="action-btn approve"
-                    >
-                      Aprovar
-                    </button>
                   </div>
-                  
-                  <p className="change-warning">
-                    ⚠️ Se você não responder até {formatDateTime(mudanca.expires_at)}, 
-                    sua reserva será automaticamente cancelada.
-                  </p>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Notificações */}
-        <div className="section">
-          <h2 className="form-title">Histórico de Notificações</h2>
-          
+        {/* Notificações Gerais */}
+        <div className="notification-section">
+          <h3>Notificações</h3>
           {notificacoes.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#666', marginTop: '1rem' }}>
-              Nenhuma notificação.
-            </p>
+            <p className="empty-message">Nenhuma notificação.</p>
           ) : (
             <div className="notifications-list">
               {notificacoes.map(notif => (
-                <div 
-                  key={notif.id} 
-                  className={`notification-card ${notif.is_read ? 'read' : 'unread'}`}
-                  onClick={() => !notif.is_read && handleMarcarComoLida(notif.id)}
-                >
+                <div key={notif.id} className={`notification-card ${notif.is_read ? 'read' : 'unread'}`}>
+                  <div className="notification-header">
+                    <h4>{notif.title}</h4>
+                    <span className="notification-date">{new Date(notif.created_at).toLocaleDateString()}</span>
+                  </div>
                   <div className="notification-content">
                     <p>{notif.message}</p>
-                    <small>{formatDateTime(notif.created_at)}</small>
                   </div>
-                  {!notif.is_read && <div className="unread-indicator">●</div>}
+                  {!notif.is_read && (
+                    <div className="notification-actions">
+                      <button 
+                        onClick={() => handleMarcarComoLida(notif.id)}
+                        className="action-btn mark-read"
+                      >
+                        Marcar como Lida
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -355,84 +238,95 @@ export default function ClientNotifications() {
       </div>
 
       <style jsx>{`
-        .section {
+        .notification-section {
           margin-bottom: 2rem;
         }
 
-        .changes-list, .notifications-list {
-          margin-top: 1rem;
+        .notification-section h3 {
+          color: #333;
+          margin-bottom: 1rem;
+          padding-bottom: 0.5rem;
+          border-bottom: 2px solid #f0f0f0;
         }
 
-        .change-card {
-          border: 2px solid #ffc107;
+        .empty-message {
+          text-align: center;
+          color: #666;
+          font-style: italic;
+          padding: 2rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .notifications-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .notification-card {
+          background: white;
+          border: 1px solid #e0e0e0;
           border-radius: 8px;
           padding: 1.5rem;
-          margin-bottom: 1rem;
-          background: #fff8e1;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          transition: all 0.2s ease;
         }
 
-        .change-card.urgent {
-          border-color: #ff5722;
-          background: #ffebee;
+        .notification-card:hover {
+          box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
 
-        .change-header {
+        .notification-card.unread {
+          border-left: 4px solid #007bff;
+          background: #f8f9ff;
+        }
+
+        .notification-card.mudanca {
+          border-left: 4px solid #ffc107;
+        }
+
+        .notification-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
           margin-bottom: 1rem;
         }
 
-        .time-remaining {
-          background: #ff5722;
-          color: white;
-          padding: 0.25rem 0.5rem;
-          border-radius: 4px;
-          font-size: 0.8rem;
-          font-weight: bold;
+        .notification-header h4 {
+          margin: 0;
+          color: #333;
+          font-size: 1.1rem;
         }
 
-        .change-comparison {
-          display: grid;
-          grid-template-columns: 1fr auto 1fr;
-          gap: 1rem;
-          margin-bottom: 1rem;
-          align-items: center;
-        }
-
-        .change-before, .change-after {
-          padding: 1rem;
-          border-radius: 4px;
-        }
-
-        .change-before {
-          background: #f5f5f5;
-        }
-
-        .change-after {
-          background: #e8f5e8;
-        }
-
-        .change-arrow {
-          font-size: 1.5rem;
-          font-weight: bold;
+        .notification-date {
           color: #666;
-          text-align: center;
+          font-size: 0.9rem;
         }
 
-        .change-actions {
-          display: flex;
-          gap: 1rem;
+        .notification-content {
           margin-bottom: 1rem;
+        }
+
+        .notification-content p {
+          margin: 0.5rem 0;
+          color: #555;
+        }
+
+        .notification-actions {
+          display: flex;
+          gap: 0.5rem;
+          justify-content: flex-end;
         }
 
         .action-btn {
-          padding: 0.75rem 1.5rem;
+          padding: 0.5rem 1rem;
           border: none;
           border-radius: 4px;
           cursor: pointer;
-          font-weight: bold;
-          flex: 1;
+          font-size: 0.9rem;
+          font-weight: 500;
+          transition: all 0.2s ease;
         }
 
         .action-btn.approve {
@@ -440,68 +334,37 @@ export default function ClientNotifications() {
           color: white;
         }
 
+        .action-btn.approve:hover {
+          background: #218838;
+        }
+
         .action-btn.reject {
           background: #dc3545;
           color: white;
         }
 
-        .change-warning {
-          background: #fff3cd;
-          border: 1px solid #ffeaa7;
-          padding: 0.75rem;
-          border-radius: 4px;
-          margin: 0;
-          font-size: 0.9rem;
-          color: #856404;
+        .action-btn.reject:hover {
+          background: #c82333;
         }
 
-        .notification-card {
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          padding: 1rem;
-          margin-bottom: 0.5rem;
-          cursor: pointer;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
+        .action-btn.mark-read {
+          background: #6c757d;
+          color: white;
         }
 
-        .notification-card.unread {
-          background: #f0f8ff;
-          border-color: #007bff;
-        }
-
-        .notification-card.read {
-          background: #f8f9fa;
-          opacity: 0.7;
-        }
-
-        .notification-content {
-          flex: 1;
-        }
-
-        .notification-content p {
-          margin: 0 0 0.5rem 0;
-        }
-
-        .notification-content small {
-          color: #666;
-        }
-
-        .unread-indicator {
-          color: #007bff;
-          font-size: 1.2rem;
-          margin-left: 1rem;
+        .action-btn.mark-read:hover {
+          background: #5a6268;
         }
 
         @media (max-width: 768px) {
-          .change-comparison {
-            grid-template-columns: 1fr;
+          .notification-header {
+            flex-direction: column;
+            align-items: flex-start;
             gap: 0.5rem;
           }
-          
-          .change-arrow {
-            transform: rotate(90deg);
+
+          .notification-actions {
+            justify-content: flex-start;
           }
         }
       `}</style>

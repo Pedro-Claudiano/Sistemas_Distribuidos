@@ -1,0 +1,40 @@
+{
+    "family": "usuarios-task-with-db",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512",
+    "executionRoleArn": "arn:aws:iam::215665149732:role/ecsTaskExecutionRole",
+    "containerDefinitions": [
+        {
+            "name": "usuarios-container",
+            "image": "215665149732.dkr.ecr.us-east-1.amazonaws.com/usuarios-service:prod",
+            "portMappings": [
+                {
+                    "containerPort": 3000,
+                    "protocol": "tcp"
+                }
+            ],
+            "environment": [
+                {"name": "NODE_ENV", "value": "production"},
+                {"name": "NODE_PORT", "value": "3000"},
+                {"name": "DB_HOST", "value": "reservas-db.co7ei6mgk8xx.us-east-1.rds.amazonaws.com"},
+                {"name": "DB_USER", "value": "admin"},
+                {"name": "DB_PASSWORD", "value": "ReservasDB123!"},
+                {"name": "DB_NAME", "value": "reservas_db"},
+                {"name": "DB_PORT", "value": "3306"},
+                {"name": "JWT_SECRET", "value": "jwt-secret-aws-producao"}
+            ],
+            "essential": true,
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/usuarios-service",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs",
+                    "awslogs-create-group": "true"
+                }
+            }
+        }
+    ]
+}

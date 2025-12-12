@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import InputField from "../components/InputField";
 
+const API_BASE_URL = 'http://3.228.1.69:3000/api';
+
 export default function Register() {
   const [formData, setFormData] = useState({
     name: "",
@@ -39,7 +41,7 @@ export default function Register() {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/users", {
+      const response = await fetch(`${API_BASE_URL}/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password })

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const API_URL = "https://localhost/api"; 
+const API_URL = "http://3.228.1.69:3000/api"; 
 
 export default function EntregaDemo() {
   const [user, setUser] = useState(null); 

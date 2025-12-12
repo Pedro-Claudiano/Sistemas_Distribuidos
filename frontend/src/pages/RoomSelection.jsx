@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://3.228.1.69:3000/api';
 
 const allTimeSlots = [
   { label: '08:00 - 08:50', start: '08:00:00', end: '08:50:00', period: 'Manhã', icon: '🌅' },
@@ -87,8 +87,18 @@ export default function RoomSelection() {
   }, [isAuthenticated]);
 
   const fetchRooms = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setMessage({ type: 'error', text: 'Erro de autenticação. Faça login.' });
+      return;
+    }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/salas`);
+      const response = await fetch(`${API_BASE_URL}/rooms`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!response.ok) throw new Error('Erro ao buscar salas');
       const data = await response.json();
       setRooms(data);
@@ -106,7 +116,7 @@ export default function RoomSelection() {
       const payload = JSON.parse(atob(token.split('.')[1]));
       const userId = payload.userId;
 
-      const response = await fetch(`${API_BASE_URL}/reservas/usuario/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/reservas`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -118,7 +128,11 @@ export default function RoomSelection() {
       // Busca as salas se ainda não foram carregadas
       let roomsList = rooms;
       if (roomsList.length === 0) {
-        const salasResponse = await fetch(`${API_BASE_URL}/salas`);
+        const salasResponse = await fetch(`${API_BASE_URL}/rooms`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (salasResponse.ok) {
           roomsList = await salasResponse.json();
           setRooms(roomsList);
@@ -166,11 +180,9 @@ export default function RoomSelection() {
       if (!isEditing) setSelectedTime('');
 
       try {
-        const response = await fetch(`${API_BASE_URL}/salas/${selectedRoom}/horarios-disponiveis?date=${dateToCheck}`);
-        if (!response.ok) throw new Error('Erro ao buscar horários');
-        
-        const slots = await response.json();
-        setAvailableSlots(slots);
+        // Por enquanto, mostra todos os horários como disponíveis
+        // TODO: Implementar verificação de conflitos com reservas existentes
+        setAvailableSlots(allTimeSlots);
       } catch (error) {
         console.error('Erro ao buscar horários disponíveis:', error);
         setMessage({ type: 'error', text: 'Erro ao carregar horários disponíveis.' });

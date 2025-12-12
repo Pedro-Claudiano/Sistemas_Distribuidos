@@ -1,0 +1,25 @@
+{
+    "family": "usuarios-task-simple",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512",
+    "containerDefinitions": [
+        {
+            "name": "usuarios-container",
+            "image": "215665149732.dkr.ecr.us-east-1.amazonaws.com/usuarios-service:prod",
+            "portMappings": [
+                {
+                    "containerPort": 3000,
+                    "protocol": "tcp"
+                }
+            ],
+            "environment": [
+                {"name": "NODE_ENV", "value": "production"},
+                {"name": "NODE_PORT", "value": "3000"},
+                {"name": "JWT_SECRET", "value": "jwt-secret-aws"}
+            ],
+            "essential": true
+        }
+    ]
+}
